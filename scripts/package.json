@@ -13,7 +13,9 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.107.0",
     "@workspace/db": "workspace:*",
-    "drizzle-orm": "catalog:"
+    "dotenv": "^17.4.2",
+    "drizzle-orm": "catalog:",
+    "sib-api-v3-sdk": "^8.5.0"
   },
   "devDependencies": {
     "@types/node": "catalog:",
