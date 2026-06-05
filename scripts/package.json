@@ -11,10 +11,13 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^1.0.0",
     "@supabase/supabase-js": "^2.107.0",
     "@workspace/db": "workspace:*",
     "dotenv": "^17.4.2",
     "drizzle-orm": "catalog:",
+    "jsqr": "^1.4.0",
+    "pdf-parse": "^2.4.5",
     "sib-api-v3-sdk": "^8.5.0"
   },
   "devDependencies": {

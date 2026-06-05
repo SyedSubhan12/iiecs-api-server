@@ -42,15 +42,18 @@ export default function ScannerPage() {
 
   async function handleScan(qrData: string) {
     setScanError("");
+    const cleaned = qrData.trim();
+    console.debug("Scanned QR data:", cleaned);
     scanMutation.mutate(
-      { data: { qrData } },
+      { data: { qrData: cleaned } },
       {
         onSuccess: (data) => {
           setScanResult(data as unknown as ScanResult);
           setIsScanning(false);
         },
-        onError: () => {
-          setScanError("Student not found for this QR code.");
+        onError: (error: any) => {
+          const msg = error?.response?.data?.error ?? "Student not found for this QR code.";
+          setScanError(msg);
         },
       },
     );

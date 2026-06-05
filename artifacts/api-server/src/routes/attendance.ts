@@ -1,16 +1,82 @@
 import { Router } from "express";
 import { db, attendanceTable, studentsTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
+import { readFileSync } from "node:fs";
 
 const router = Router();
+
+// #region debug-point A:config
+const debugConfig = (() => {
+  const fallback = {
+    url: "http://127.0.0.1:7777/event",
+    sessionId: "qr-scan-student-not-found",
+  };
+  try {
+    const envFile = readFileSync(
+      ".dbg/qr-scan-student-not-found.env",
+      "utf8",
+    );
+    return {
+      url:
+        envFile.match(/DEBUG_SERVER_URL=(.+)/)?.[1]?.trim() ?? fallback.url,
+      sessionId:
+        envFile.match(/DEBUG_SESSION_ID=(.+)/)?.[1]?.trim() ??
+        fallback.sessionId,
+    };
+  } catch {
+    return fallback;
+  }
+})();
+
+function reportDebug(
+  hypothesisId: "A" | "B" | "C" | "D" | "E",
+  location: string,
+  msg: string,
+  data: Record<string, unknown>,
+  traceId?: string,
+) {
+  fetch(debugConfig.url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sessionId: debugConfig.sessionId,
+      runId: "post-fix",
+      hypothesisId,
+      location,
+      msg: `[DEBUG] ${msg}`,
+      data,
+      traceId,
+      ts: Date.now(),
+    }),
+  }).catch(() => {});
+}
+// #endregion
 
 function todayStr() {
   return new Date().toISOString().split("T")[0];
 }
 
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
+}
+
+function normalizeStudentIdNumber(value: string) {
+  return value.trim().toUpperCase();
+}
+
 // Scan QR code
 router.post("/attendance/scan", async (req, res) => {
   const { qrData } = req.body as { qrData?: string };
+  const traceId = `scan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  // #region debug-point A:request-received
+  reportDebug("A", "attendance.ts:scan:start", "Attendance scan request received", {
+    hasQrData: Boolean(qrData),
+    qrPreview: qrData?.slice(0, 160) ?? null,
+    qrLength: qrData?.length ?? 0,
+  }, traceId);
+  // #endregion
   if (!qrData) {
     res.status(400).json({ error: "qrData required" });
     return;
@@ -20,37 +86,105 @@ router.post("/attendance/scan", async (req, res) => {
   let studentIdNumber: string | undefined;
 
   try {
+    // Updated parsing to handle multiple possible fields
     const parsed = JSON.parse(qrData);
-    studentUuid = parsed.id;
-    studentIdNumber = parsed.idNumber || parsed.id_number;
+    const possibleIdFields = ["id", "studentId", "student_id"]; // common variations
+    const possibleIdNumberFields = ["idNumber", "id_number", "studentIdNumber", "student_id_number"];
+    const parsedId = possibleIdFields.reduce((acc, key) => acc ?? (typeof parsed[key] === "string" ? parsed[key].trim() : undefined), undefined);
+    const parsedIdNumber = possibleIdNumberFields.reduce((acc, key) => acc ?? (typeof parsed[key] === "string" ? parsed[key] : undefined), undefined);
+    if (parsedId) {
+      if (isUuid(parsedId)) {
+        studentUuid = parsedId;
+      } else {
+        studentIdNumber = normalizeStudentIdNumber(parsedId);
+      }
+    }
+    if (!studentIdNumber && parsedIdNumber) {
+      studentIdNumber = normalizeStudentIdNumber(parsedIdNumber);
+    }
+
+    if (parsedId) {
+      if (isUuid(parsedId)) {
+        studentUuid = parsedId;
+      } else {
+        studentIdNumber = normalizeStudentIdNumber(parsedId);
+      }
+    }
+
+    if (!studentIdNumber && parsedIdNumber) {
+      studentIdNumber = normalizeStudentIdNumber(parsedIdNumber);
+    }
+    // #region debug-point B:json-parse
+    reportDebug("B", "attendance.ts:scan:json", "Parsed QR payload as JSON", {
+      parsedKeys: Object.keys(parsed),
+      studentUuid,
+      studentIdNumber,
+    }, traceId);
+    // #endregion
   } catch {
     // If not JSON, try to extract IIECS-XXX pattern from raw string/URL
     const match = qrData.match(/IIECS-\d+/i);
     if (match) {
-      studentIdNumber = match[0].toUpperCase();
+      studentIdNumber = normalizeStudentIdNumber(match[0]);
     } else {
-      studentIdNumber = qrData.trim();
+      studentIdNumber = normalizeStudentIdNumber(qrData);
     }
+    // #region debug-point C:fallback-parse
+    reportDebug("C", "attendance.ts:scan:fallback", "Fell back to raw QR parsing", {
+      matchedPattern: match?.[0] ?? null,
+      normalizedStudentIdNumber: studentIdNumber,
+    }, traceId);
+    // #endregion
   }
 
   let student;
   if (studentUuid) {
+    // #region debug-point A:lookup-by-uuid
+    reportDebug("A", "attendance.ts:scan:lookup-uuid", "Looking up student by UUID", {
+      studentUuid,
+    }, traceId);
+    // #endregion
     [student] = await db
       .select()
       .from(studentsTable)
       .where(eq(studentsTable.id, studentUuid))
       .limit(1);
+    // #region debug-point A:lookup-by-uuid-result
+    reportDebug("A", "attendance.ts:scan:lookup-uuid-result", "UUID lookup finished", {
+      found: Boolean(student),
+      studentId: student?.id ?? null,
+      studentIdNumber: student?.idNumber ?? null,
+    }, traceId);
+    // #endregion
   }
 
   if (!student && studentIdNumber) {
+    // #region debug-point D:lookup-by-id-number
+    reportDebug("D", "attendance.ts:scan:lookup-id-number", "Looking up student by ID number", {
+      studentIdNumber,
+    }, traceId);
+    // #endregion
     [student] = await db
       .select()
       .from(studentsTable)
       .where(eq(studentsTable.idNumber, studentIdNumber))
       .limit(1);
+    // #region debug-point D:lookup-by-id-number-result
+    reportDebug("D", "attendance.ts:scan:lookup-id-number-result", "ID number lookup finished", {
+      found: Boolean(student),
+      studentId: student?.id ?? null,
+      studentIdNumber: student?.idNumber ?? null,
+    }, traceId);
+    // #endregion
   }
 
   if (!student) {
+    // #region debug-point E:not-found
+    reportDebug("E", "attendance.ts:scan:not-found", "Student not found after QR parsing and lookup", {
+      studentUuid: studentUuid ?? null,
+      studentIdNumber: studentIdNumber ?? null,
+    }, traceId);
+    // #endregion
     res.status(404).json({ error: "Student not found" });
     return;
   }
