@@ -465,6 +465,32 @@ export const CreateInvoiceBody = zod.object({
 
 
 /**
+ * @summary Generate monthly invoices for all students
+ */
+export const GenerateMonthlyInvoicesBody = zod.object({
+  "month": zod.string().optional().describe('Month in YYYY-MM format. Defaults to current month.')
+})
+
+export const GenerateMonthlyInvoicesResponse = zod.object({
+  "month": zod.string(),
+  "created": zod.number(),
+  "skipped": zod.number(),
+  "invoices": zod.array(zod.object({
+  "id": zod.string(),
+  "studentId": zod.string(),
+  "studentName": zod.string().nullish(),
+  "paymentId": zod.string().nullish(),
+  "invoiceNumber": zod.string(),
+  "amount": zod.number(),
+  "issuedDate": zod.string().optional(),
+  "dueDate": zod.string().nullish(),
+  "status": zod.string(),
+  "createdAt": zod.string()
+})).optional()
+})
+
+
+/**
  * @summary Get an invoice
  */
 export const GetInvoiceParams = zod.object({

@@ -4,7 +4,9 @@ import {
   useUpdatePayment,
   useCreatePayment,
   useListStudents,
+  useGenerateMonthlyInvoices,
   getListPaymentsQueryKey,
+  getListInvoicesQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AdminLayout } from "@/components/AdminLayout";
@@ -26,6 +28,12 @@ function StatusBadge({ status }: { status: string }) {
 export default function PaymentsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [invoiceMonth, setInvoiceMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const [generateResult, setGenerateResult] = useState<{ created: number; skipped: number; month: string } | null>(null);
   const [form, setForm] = useState({ studentId: "", amount: "", description: "Course Fee - IIECS-101", dueDate: "" });
   const queryClient = useQueryClient();
 
@@ -53,6 +61,15 @@ export default function PaymentsPage() {
     },
   });
 
+  const generateMutation = useGenerateMonthlyInvoices({
+    mutation: {
+      onSuccess: (data) => {
+        setGenerateResult({ created: data.created, skipped: data.skipped, month: data.month });
+        queryClient.invalidateQueries({ queryKey: getListInvoicesQueryKey() });
+      },
+    },
+  });
+
   function markPaid(id: string) {
     updateMutation.mutate({ id, data: { status: "paid" } });
   }
@@ -67,6 +84,11 @@ export default function PaymentsPage() {
         dueDate: form.dueDate || null,
       },
     });
+  }
+
+  function handleGenerateInvoices() {
+    setGenerateResult(null);
+    generateMutation.mutate({ data: { month: invoiceMonth } });
   }
 
   const totalPending = payments?.filter((p) => p.status !== "paid").reduce((s, p) => s + p.amount, 0) ?? 0;
@@ -91,7 +113,7 @@ export default function PaymentsPage() {
       </div>
 
       {/* Controls */}
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -105,12 +127,67 @@ export default function PaymentsPage() {
         </select>
         <div className="flex-1" />
         <button
+          onClick={() => setShowInvoiceModal(true)}
+          className="px-4 py-2 bg-secondary text-secondary-foreground text-sm font-medium rounded-md border border-border hover:opacity-90 transition-opacity"
+        >
+          📄 Generate Monthly Invoices
+        </button>
+        <button
           onClick={() => setShowForm(true)}
           className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:opacity-90 transition-opacity"
         >
           Create Payment
         </button>
       </div>
+
+      {/* Generate Invoices Modal */}
+      {showInvoiceModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-card-border rounded-xl p-6 w-full max-w-md shadow-xl">
+            <h3 className="text-base font-semibold text-foreground mb-1">Generate Monthly Invoices</h3>
+            <p className="text-xs text-muted-foreground mb-5">
+              Creates a Rs 2,000 invoice for every student who doesn't already have one for the selected month. Existing invoices are skipped.
+            </p>
+
+            <div className="mb-5">
+              <label className="block text-xs text-muted-foreground mb-1.5">Month</label>
+              <input
+                type="month"
+                value={invoiceMonth}
+                onChange={(e) => { setInvoiceMonth(e.target.value); setGenerateResult(null); }}
+                className="w-full px-3 py-2 rounded-md bg-background border border-input text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+
+            {generateResult && (
+              <div className="mb-5 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-sm">
+                <div className="font-semibold text-emerald-400 mb-1">Done — {generateResult.month}</div>
+                <div className="text-foreground">
+                  <span className="text-emerald-400 font-bold">{generateResult.created}</span> invoice{generateResult.created !== 1 ? "s" : ""} created &nbsp;·&nbsp;
+                  <span className="text-muted-foreground">{generateResult.skipped} already existed</span>
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleGenerateInvoices}
+                disabled={generateMutation.isPending}
+                className="flex-1 px-4 py-2 bg-primary text-primary-foreground text-sm font-semibold rounded-md hover:opacity-90 disabled:opacity-50 transition-opacity"
+              >
+                {generateMutation.isPending ? "Generating..." : "Generate Invoices"}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowInvoiceModal(false); setGenerateResult(null); }}
+                className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showForm && (
         <div className="mb-5 bg-card border border-card-border rounded-lg p-5">
@@ -137,7 +214,7 @@ export default function PaymentsPage() {
                 required
                 value={form.amount}
                 onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-                placeholder="50000"
+                placeholder="2000"
                 className="w-full px-3 py-2 rounded-md bg-background border border-input text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>

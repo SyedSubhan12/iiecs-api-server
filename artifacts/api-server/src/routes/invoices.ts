@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, invoicesTable, studentsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and, like } from "drizzle-orm";
 import { format } from "date-fns";
 
 const router = Router();
@@ -88,6 +88,72 @@ router.post("/invoices", async (req, res) => {
     amount: parseFloat(invoice.amount),
     issuedDate: invoice.issuedDate.toISOString(),
     createdAt: invoice.createdAt.toISOString(),
+  });
+});
+
+// Generate monthly invoices for all students
+router.post("/invoices/generate-monthly", async (req, res) => {
+  const { month } = (req.body ?? {}) as { month?: string };
+  const now = new Date();
+  const targetMonth = month || format(now, "yyyy-MM");
+  const [yr, mo] = targetMonth.split("-").map(Number);
+
+  // 15th of the target month as due date
+  const dueDate = format(new Date(yr, mo - 1, 15), "yyyy-MM-dd");
+  const prefix = `INV-${targetMonth.replace("-", "")}`;
+
+  const students = await db.select().from(studentsTable);
+
+  const createdInvoices = [];
+  let skipped = 0;
+
+  for (const student of students) {
+    // Check if invoice already exists for this student this month
+    const existing = await db
+      .select()
+      .from(invoicesTable)
+      .where(and(eq(invoicesTable.studentId, student.id), like(invoicesTable.invoiceNumber, `${prefix}%`)))
+      .limit(1);
+
+    if (existing.length > 0) {
+      skipped++;
+      continue;
+    }
+
+    // Count existing invoices for this month (for numbering)
+    const allForMonth = await db
+      .select()
+      .from(invoicesTable)
+      .where(like(invoicesTable.invoiceNumber, `${prefix}%`));
+
+    const count = (allForMonth.length + 1).toString().padStart(4, "0");
+    const invoiceNumber = `${prefix}-${count}`;
+
+    const [invoice] = await db
+      .insert(invoicesTable)
+      .values({
+        studentId: student.id,
+        invoiceNumber,
+        amount: "2000",
+        dueDate,
+        status: "unpaid",
+      })
+      .returning();
+
+    createdInvoices.push({
+      ...invoice,
+      studentName: student.fullName,
+      amount: 2000,
+      issuedDate: invoice.issuedDate.toISOString(),
+      createdAt: invoice.createdAt.toISOString(),
+    });
+  }
+
+  res.json({
+    month: targetMonth,
+    created: createdInvoices.length,
+    skipped,
+    invoices: createdInvoices,
   });
 });
 

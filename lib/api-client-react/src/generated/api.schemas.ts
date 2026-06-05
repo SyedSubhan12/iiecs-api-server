@@ -218,6 +218,18 @@ export interface InvoiceUpdate {
   status?: string;
 }
 
+export interface GenerateMonthlyInput {
+  /** Month in YYYY-MM format. Defaults to current month. */
+  month?: string;
+}
+
+export interface GenerateMonthlyResult {
+  month: string;
+  created: number;
+  skipped: number;
+  invoices?: Invoice[];
+}
+
 export type ListStudentsParams = {
 batch?: string;
 status?: string;

@@ -26,6 +26,8 @@ import type {
   AttendanceUpdate,
   AuthResponse,
   DashboardStats,
+  GenerateMonthlyInput,
+  GenerateMonthlyResult,
   GetMonthlyAttendanceReportParams,
   HealthStatus,
   Invoice,
@@ -1806,6 +1808,77 @@ export const useCreateInvoice = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateInvoiceMutationOptions(options));
+    }
+
+export const getGenerateMonthlyInvoicesUrl = () => {
+
+
+
+
+  return `/api/invoices/generate-monthly`
+}
+
+/**
+ * @summary Generate monthly invoices for all students
+ */
+export const generateMonthlyInvoices = async (generateMonthlyInput?: GenerateMonthlyInput, options?: RequestInit): Promise<GenerateMonthlyResult> => {
+
+  return customFetch<GenerateMonthlyResult>(getGenerateMonthlyInvoicesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      generateMonthlyInput,)
+  }
+);}
+
+
+
+
+export const getGenerateMonthlyInvoicesMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateMonthlyInvoices>>, TError,{data?: BodyType<GenerateMonthlyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof generateMonthlyInvoices>>, TError,{data?: BodyType<GenerateMonthlyInput>}, TContext> => {
+
+const mutationKey = ['generateMonthlyInvoices'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof generateMonthlyInvoices>>, {data?: BodyType<GenerateMonthlyInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  generateMonthlyInvoices(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GenerateMonthlyInvoicesMutationResult = NonNullable<Awaited<ReturnType<typeof generateMonthlyInvoices>>>
+    export type GenerateMonthlyInvoicesMutationBody = BodyType<GenerateMonthlyInput> | undefined
+    export type GenerateMonthlyInvoicesMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Generate monthly invoices for all students
+ */
+export const useGenerateMonthlyInvoices = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateMonthlyInvoices>>, TError,{data?: BodyType<GenerateMonthlyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof generateMonthlyInvoices>>,
+        TError,
+        {data?: BodyType<GenerateMonthlyInput>},
+        TContext
+      > => {
+      return useMutation(getGenerateMonthlyInvoicesMutationOptions(options));
     }
 
 export const getGetInvoiceUrl = (id: string,) => {

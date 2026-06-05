@@ -12,6 +12,8 @@ export * from './attendanceSummary';
 export * from './attendanceUpdate';
 export * from './authResponse';
 export * from './dashboardStats';
+export * from './generateMonthlyInput';
+export * from './generateMonthlyResult';
 export * from './getMonthlyAttendanceReportParams';
 export * from './healthStatus';
 export * from './invoice';
