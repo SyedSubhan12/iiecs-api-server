@@ -10,7 +10,8 @@ export interface InvoiceInput {
   studentId: string;
   /** @nullable */
   paymentId?: string | null;
-  amount: number;
+  /** Ignored by the server; fixed student fee is Rs 2000 */
+  amount?: number;
   /** @nullable */
   dueDate?: string | null;
 }

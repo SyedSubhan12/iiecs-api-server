@@ -16,25 +16,39 @@ router.post("/attendance/scan", async (req, res) => {
     return;
   }
 
-  let parsed: { id?: string; email?: string; idNumber?: string } = {};
+  let studentUuid: string | undefined;
+  let studentIdNumber: string | undefined;
+
   try {
-    parsed = JSON.parse(qrData);
+    const parsed = JSON.parse(qrData);
+    studentUuid = parsed.id;
+    studentIdNumber = parsed.idNumber || parsed.id_number;
   } catch {
-    res.status(400).json({ error: "Invalid QR data format" });
-    return;
+    // If not JSON, try to extract IIECS-XXX pattern from raw string/URL
+    const match = qrData.match(/IIECS-\d+/i);
+    if (match) {
+      studentIdNumber = match[0].toUpperCase();
+    } else {
+      studentIdNumber = qrData.trim();
+    }
   }
 
-  const studentId = parsed.id;
-  if (!studentId) {
-    res.status(400).json({ error: "QR code missing student ID" });
-    return;
+  let student;
+  if (studentUuid) {
+    [student] = await db
+      .select()
+      .from(studentsTable)
+      .where(eq(studentsTable.id, studentUuid))
+      .limit(1);
   }
 
-  const [student] = await db
-    .select()
-    .from(studentsTable)
-    .where(eq(studentsTable.id, studentId))
-    .limit(1);
+  if (!student && studentIdNumber) {
+    [student] = await db
+      .select()
+      .from(studentsTable)
+      .where(eq(studentsTable.idNumber, studentIdNumber))
+      .limit(1);
+  }
 
   if (!student) {
     res.status(404).json({ error: "Student not found" });
@@ -47,7 +61,7 @@ router.post("/attendance/scan", async (req, res) => {
     .from(attendanceTable)
     .where(
       and(
-        eq(attendanceTable.studentId, studentId),
+        eq(attendanceTable.studentId, student.id),
         eq(attendanceTable.attendanceDate, today),
       ),
     )
@@ -88,11 +102,13 @@ router.post("/attendance/scan", async (req, res) => {
 
 // List attendance
 router.get("/attendance", async (req, res) => {
-  const { studentId, date, month, batch } = req.query as {
+  const { studentId, date, month, batch, studentName, status } = req.query as {
     studentId?: string;
     date?: string;
     month?: string;
     batch?: string;
+    studentName?: string;
+    status?: string;
   };
 
   const rows = await db
@@ -118,6 +134,14 @@ router.get("/attendance", async (req, res) => {
   if (date) filtered = filtered.filter((r) => r.attendanceDate === date);
   if (month) filtered = filtered.filter((r) => r.attendanceDate.startsWith(month));
   if (batch) filtered = filtered.filter((r) => r.batch === batch);
+  if (studentName) {
+    const searchName = studentName.toLowerCase();
+    filtered = filtered.filter((r) => 
+      r.studentName.toLowerCase().includes(searchName) || 
+      r.studentIdNumber.toLowerCase().includes(searchName)
+    );
+  }
+  if (status) filtered = filtered.filter((r) => r.status === status);
 
   res.json(
     filtered.map((r) => ({

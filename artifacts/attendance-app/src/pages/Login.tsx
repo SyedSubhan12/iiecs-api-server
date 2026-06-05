@@ -13,6 +13,7 @@ export default function Login() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    console.log('Attempting login with email:', email.trim());
     if (!email.trim()) {
       setError("Email is required");
       return;
@@ -21,6 +22,7 @@ export default function Login() {
       { data: { email: email.trim() } },
       {
         onSuccess: (data) => {
+          console.log('Login succeeded with data:', data);
           login({
             email: data.email,
             role: data.role as "admin" | "student",
@@ -28,8 +30,10 @@ export default function Login() {
             name: data.name,
           });
           setLocation(data.role === "admin" ? "/admin" : "/student");
+          console.log('Redirected to', data.role === "admin" ? "/admin" : "/student");
         },
-        onError: () => {
+        onError: (error) => {
+          console.error('Login error:', error);
           setError("Email not recognized. Please contact your administrator.");
         },
       },

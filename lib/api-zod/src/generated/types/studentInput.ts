@@ -11,6 +11,7 @@ export interface StudentInput {
   fullName: string;
   idNumber: string;
   batch: string;
+  idCardUrl?: string;
   phone?: string;
   address?: string;
   cnic?: string;

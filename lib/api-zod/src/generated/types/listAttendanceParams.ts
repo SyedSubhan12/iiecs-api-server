@@ -11,4 +11,6 @@ studentId?: string;
 date?: string;
 month?: string;
 batch?: string;
+studentName?: string;
+status?: string;
 };

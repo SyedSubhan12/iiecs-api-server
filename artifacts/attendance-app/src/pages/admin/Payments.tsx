@@ -34,7 +34,7 @@ export default function PaymentsPage() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   });
   const [generateResult, setGenerateResult] = useState<{ created: number; skipped: number; month: string } | null>(null);
-  const [form, setForm] = useState({ studentId: "", amount: "", description: "Course Fee - IIECS-101", dueDate: "" });
+  const [form, setForm] = useState({ studentId: "", amount: "2000", description: "Course Fee - IIECS-101", dueDate: "" });
   const queryClient = useQueryClient();
 
   const { data: payments, isLoading } = useListPayments(
@@ -56,7 +56,7 @@ export default function PaymentsPage() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListPaymentsQueryKey() });
         setShowForm(false);
-        setForm({ studentId: "", amount: "", description: "Course Fee - IIECS-101", dueDate: "" });
+        setForm({ studentId: "", amount: "2000", description: "Course Fee - IIECS-101", dueDate: "" });
       },
     },
   });
@@ -213,8 +213,7 @@ export default function PaymentsPage() {
                 type="number"
                 required
                 value={form.amount}
-                onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-                placeholder="2000"
+                disabled
                 className="w-full px-3 py-2 rounded-md bg-background border border-input text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>

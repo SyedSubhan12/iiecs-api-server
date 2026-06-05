@@ -15,6 +15,8 @@ export interface Student {
   /** @nullable */
   qrCodeData?: string | null;
   /** @nullable */
+  idCardUrl?: string | null;
+  /** @nullable */
   phone?: string | null;
   /** @nullable */
   address?: string | null;

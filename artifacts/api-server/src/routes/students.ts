@@ -1,8 +1,73 @@
 import { Router } from "express";
 import { db, studentsTable, attendanceTable, paymentsTable } from "@workspace/db";
 import { eq, like, or, and, sql } from "drizzle-orm";
+import PDFDocument from "pdfkit";
 
 const router = Router();
+const ADMIN_EMAILS = ["admin@iiecs.edu", "teacher@iiecs.edu"];
+
+async function getAuthContext(req: {
+  headers: Record<string, unknown>;
+}): Promise<{ role: "admin" | "student"; email: string; studentId: string | null } | null> {
+  const raw = req.headers["x-user-email"];
+  const email = typeof raw === "string" ? raw.toLowerCase().trim() : null;
+  if (!email) return null;
+
+  if (ADMIN_EMAILS.includes(email)) {
+    return { role: "admin", email, studentId: null };
+  }
+
+  const [student] = await db
+    .select({ id: studentsTable.id })
+    .from(studentsTable)
+    .where(eq(studentsTable.email, email))
+    .limit(1);
+
+  if (!student) return null;
+  return { role: "student", email, studentId: student.id };
+}
+
+function buildIdCardPdfBuffer(student: {
+  fullName: string;
+  idNumber: string;
+  batch: string;
+  email: string;
+  enrollmentDate: Date;
+}): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: [243, 153], margin: 14 });
+    const chunks: Buffer[] = [];
+
+    doc.on("data", (c: Buffer | Uint8Array) =>
+      chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)),
+    );
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+
+    doc.rect(0, 0, doc.page.width, doc.page.height).fill("#003366");
+    doc.fillColor("#ffffff");
+
+    doc.fontSize(10).text("IIECS Institute", 14, 12);
+    doc.fontSize(7).fillColor("#ffc107").text("C/C++ Algorithms Program", 14, 26);
+
+    doc.fillColor("#ffffff");
+    doc.fontSize(12).text(student.fullName, 14, 52, { width: doc.page.width - 28 });
+    doc.fontSize(9).fillColor("#ffc107").text(student.idNumber, 14, 70);
+
+    doc.fillColor("#ffffff");
+    doc.fontSize(7).text(`Batch: ${student.batch}`, 14, 90, { width: doc.page.width - 28 });
+    doc.fontSize(7).text(`Email: ${student.email}`, 14, 103, { width: doc.page.width - 28 });
+    doc.fontSize(7).text(`Enrolled: ${student.enrollmentDate.toISOString().split("T")[0]}`, 14, 116);
+
+    doc.fillColor("#ffc107");
+    doc.fontSize(7).text("STUDENT ID", doc.page.width - 80, doc.page.height - 22, {
+      width: 66,
+      align: "center",
+    });
+
+    doc.end();
+  });
+}
 
 function buildQrCodeData(student: {
   id: string;
@@ -30,7 +95,24 @@ router.get("/students", async (req, res) => {
     search?: string;
   };
 
-  let query = db.select().from(studentsTable).$dynamic();
+  let query = db
+    .select({
+      id: studentsTable.id,
+      email: studentsTable.email,
+      fullName: studentsTable.fullName,
+      idNumber: studentsTable.idNumber,
+      batch: studentsTable.batch,
+      qrCodeData: studentsTable.qrCodeData,
+      idCardUrl: studentsTable.idCardUrl,
+      phone: studentsTable.phone,
+      address: studentsTable.address,
+      cnic: studentsTable.cnic,
+      status: studentsTable.status,
+      enrollmentDate: studentsTable.enrollmentDate,
+      createdAt: studentsTable.createdAt,
+    })
+    .from(studentsTable)
+    .$dynamic();
 
   const conditions = [];
   if (batch) conditions.push(eq(studentsTable.batch, batch));
@@ -94,7 +176,17 @@ router.post("/students", async (req, res) => {
     .returning();
 
   res.status(201).json({
-    ...updated,
+    id: updated.id,
+    email: updated.email,
+    fullName: updated.fullName,
+    idNumber: updated.idNumber,
+    batch: updated.batch,
+    qrCodeData: updated.qrCodeData,
+    idCardUrl: updated.idCardUrl,
+    phone: updated.phone,
+    address: updated.address,
+    cnic: updated.cnic,
+    status: updated.status,
     enrollmentDate: updated.enrollmentDate.toISOString(),
     createdAt: updated.createdAt.toISOString(),
   });
@@ -103,7 +195,21 @@ router.post("/students", async (req, res) => {
 // Get student by ID
 router.get("/students/:id", async (req, res) => {
   const [student] = await db
-    .select()
+    .select({
+      id: studentsTable.id,
+      email: studentsTable.email,
+      fullName: studentsTable.fullName,
+      idNumber: studentsTable.idNumber,
+      batch: studentsTable.batch,
+      qrCodeData: studentsTable.qrCodeData,
+      idCardUrl: studentsTable.idCardUrl,
+      phone: studentsTable.phone,
+      address: studentsTable.address,
+      cnic: studentsTable.cnic,
+      status: studentsTable.status,
+      enrollmentDate: studentsTable.enrollmentDate,
+      createdAt: studentsTable.createdAt,
+    })
     .from(studentsTable)
     .where(eq(studentsTable.id, req.params.id))
     .limit(1);
@@ -146,7 +252,17 @@ router.patch("/students/:id", async (req, res) => {
     return;
   }
   res.json({
-    ...student,
+    id: student.id,
+    email: student.email,
+    fullName: student.fullName,
+    idNumber: student.idNumber,
+    batch: student.batch,
+    qrCodeData: student.qrCodeData,
+    idCardUrl: student.idCardUrl,
+    phone: student.phone,
+    address: student.address,
+    cnic: student.cnic,
+    status: student.status,
     enrollmentDate: student.enrollmentDate.toISOString(),
     createdAt: student.createdAt.toISOString(),
   });
@@ -155,7 +271,21 @@ router.patch("/students/:id", async (req, res) => {
 // Get student by email
 router.get("/students/by-email/:email", async (req, res) => {
   const [student] = await db
-    .select()
+    .select({
+      id: studentsTable.id,
+      email: studentsTable.email,
+      fullName: studentsTable.fullName,
+      idNumber: studentsTable.idNumber,
+      batch: studentsTable.batch,
+      qrCodeData: studentsTable.qrCodeData,
+      idCardUrl: studentsTable.idCardUrl,
+      phone: studentsTable.phone,
+      address: studentsTable.address,
+      cnic: studentsTable.cnic,
+      status: studentsTable.status,
+      enrollmentDate: studentsTable.enrollmentDate,
+      createdAt: studentsTable.createdAt,
+    })
     .from(studentsTable)
     .where(eq(studentsTable.email, decodeURIComponent(req.params.email).toLowerCase()))
     .limit(1);
@@ -169,6 +299,68 @@ router.get("/students/by-email/:email", async (req, res) => {
     enrollmentDate: student.enrollmentDate.toISOString(),
     createdAt: student.createdAt.toISOString(),
   });
+});
+
+router.get("/students/:id/id-card.pdf", async (req, res) => {
+  const auth = await getAuthContext(req);
+  if (!auth) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+
+  const [student] = await db
+    .select({
+      id: studentsTable.id,
+      studentId: studentsTable.id,
+      fullName: studentsTable.fullName,
+      idNumber: studentsTable.idNumber,
+      batch: studentsTable.batch,
+      email: studentsTable.email,
+      enrollmentDate: studentsTable.enrollmentDate,
+      idCardPdf: studentsTable.idCardPdf,
+      idCardPdfFileName: studentsTable.idCardPdfFileName,
+    })
+    .from(studentsTable)
+    .where(eq(studentsTable.id, req.params.id))
+    .limit(1);
+
+  if (!student) {
+    res.status(404).json({ error: "Student not found" });
+    return;
+  }
+
+  if (auth.role === "student" && auth.studentId !== student.studentId) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  const fileName = student.idCardPdfFileName ?? `ID-Card-${student.idNumber}.pdf`;
+
+  const rawPdf = student.idCardPdf as unknown;
+
+  let pdfBuffer: Buffer;
+  if (rawPdf && Buffer.isBuffer(rawPdf)) {
+    pdfBuffer = rawPdf;
+  } else if (rawPdf && rawPdf instanceof Uint8Array) {
+    pdfBuffer = Buffer.from(rawPdf);
+  } else {
+    pdfBuffer = await buildIdCardPdfBuffer({
+      fullName: student.fullName,
+      idNumber: student.idNumber,
+      batch: student.batch,
+      email: student.email,
+      enrollmentDate: student.enrollmentDate,
+    });
+
+    await db
+      .update(studentsTable)
+      .set({ idCardPdf: pdfBuffer, idCardPdfFileName: fileName, idCardUrl: null })
+      .where(eq(studentsTable.id, student.id));
+  }
+
+  res.setHeader("content-type", "application/pdf");
+  res.setHeader("content-disposition", `attachment; filename="${fileName}"`);
+  res.send(pdfBuffer);
 });
 
 // Get student progress

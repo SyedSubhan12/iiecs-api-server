@@ -188,6 +188,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/Student"
 
+  /students/{id}/id-card.pdf:
+    get:
+      operationId: downloadStudentIdCardPdf
+      tags: [students]
+      summary: Download the student's ID card PDF
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: ID card PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
   /students/by-email/{email}:
     get:
       operationId: getStudentByEmail
@@ -248,6 +268,14 @@ paths:
           schema:
             type: string
         - name: batch
+          in: query
+          schema:
+            type: string
+        - name: studentName
+          in: query
+          schema:
+            type: string
+        - name: status
           in: query
           schema:
             type: string
@@ -550,6 +578,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/Invoice"
 
+  /invoices/{id}/pdf:
+    get:
+      operationId: downloadInvoicePdf
+      tags: [invoices]
+      summary: Download invoice PDF
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Invoice PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
 components:
   schemas:
     HealthStatus:
@@ -623,6 +671,8 @@ components:
           type: string
         qrCodeData:
           type: ["string", "null"]
+        idCardUrl:
+          type: ["string", "null"]
         phone:
           type: ["string", "null"]
         address:
@@ -648,6 +698,8 @@ components:
           type: string
         batch:
           type: string
+        idCardUrl:
+          type: string
         phone:
           type: string
         address:
@@ -660,6 +712,8 @@ components:
       properties:
         fullName:
           type: string
+        idCardUrl:
+          type: ["string", "null"]
         phone:
           type: ["string", "null"]
         address:
@@ -818,12 +872,13 @@ components:
 
     PaymentInput:
       type: object
-      required: [studentId, amount]
+      required: [studentId]
       properties:
         studentId:
           type: string
         amount:
           type: number
+          description: "Ignored by the server; fixed student fee is Rs 2000"
         description:
           type: string
         dueDate:
@@ -873,7 +928,7 @@ components:
 
     InvoiceInput:
       type: object
-      required: [studentId, amount]
+      required: [studentId]
       properties:
         studentId:
           type: string
@@ -881,6 +936,7 @@ components:
           type: ["string", "null"]
         amount:
           type: number
+          description: "Ignored by the server; fixed student fee is Rs 2000"
         dueDate:
           type: ["string", "null"]
 

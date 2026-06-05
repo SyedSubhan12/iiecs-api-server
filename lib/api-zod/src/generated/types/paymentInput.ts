@@ -8,7 +8,8 @@
 
 export interface PaymentInput {
   studentId: string;
-  amount: number;
+  /** Ignored by the server; fixed student fee is Rs 2000 */
+  amount?: number;
   description?: string;
   /** @nullable */
   dueDate?: string | null;

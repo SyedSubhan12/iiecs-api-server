@@ -9,7 +9,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { AdminLayout } from "@/components/AdminLayout";
 
-function ProgressPanel({ studentId }: { studentId: string }) {
+function ProgressPanel({ studentId, idCardUrl }: { studentId: string; idCardUrl?: string | null }) {
   const { data, isLoading } = useGetStudentProgress(studentId, {
     query: { queryKey: getGetStudentProgressQueryKey(studentId) },
   });
@@ -37,6 +37,19 @@ function ProgressPanel({ studentId }: { studentId: string }) {
           <div className="font-semibold text-amber-400 mt-0.5">PKR {data.totalPending.toLocaleString()}</div>
         </div>
       </div>
+      {idCardUrl && (
+        <div className="mt-2 pt-2 border-t border-border flex justify-end">
+          <a
+            href={idCardUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-primary hover:underline flex items-center gap-1 font-semibold"
+            onClick={(e) => e.stopPropagation()}
+          >
+            🪪 View Official ID Card PDF
+          </a>
+        </div>
+      )}
     </div>
   );
 }
@@ -179,7 +192,7 @@ export default function StudentsPage() {
                     {selectedId === s.id && (
                       <tr key={`${s.id}-prog`} className="border-b border-border bg-muted/10">
                         <td colSpan={7} className="px-4 py-2">
-                          <ProgressPanel studentId={s.id} />
+                          <ProgressPanel studentId={s.id} idCardUrl={s.idCardUrl} />
                         </td>
                       </tr>
                     )}

@@ -75,6 +75,7 @@ export const ListStudentsResponseItem = zod.object({
   "idNumber": zod.string(),
   "batch": zod.string(),
   "qrCodeData": zod.string().nullish(),
+  "idCardUrl": zod.string().nullish(),
   "phone": zod.string().nullish(),
   "address": zod.string().nullish(),
   "cnic": zod.string().nullish(),
@@ -93,6 +94,7 @@ export const CreateStudentBody = zod.object({
   "fullName": zod.string(),
   "idNumber": zod.string(),
   "batch": zod.string(),
+  "idCardUrl": zod.string().optional(),
   "phone": zod.string().optional(),
   "address": zod.string().optional(),
   "cnic": zod.string().optional()
@@ -113,6 +115,7 @@ export const GetStudentResponse = zod.object({
   "idNumber": zod.string(),
   "batch": zod.string(),
   "qrCodeData": zod.string().nullish(),
+  "idCardUrl": zod.string().nullish(),
   "phone": zod.string().nullish(),
   "address": zod.string().nullish(),
   "cnic": zod.string().nullish(),
@@ -131,6 +134,7 @@ export const UpdateStudentParams = zod.object({
 
 export const UpdateStudentBody = zod.object({
   "fullName": zod.string().optional(),
+  "idCardUrl": zod.string().nullish(),
   "phone": zod.string().nullish(),
   "address": zod.string().nullish(),
   "cnic": zod.string().nullish(),
@@ -144,12 +148,21 @@ export const UpdateStudentResponse = zod.object({
   "idNumber": zod.string(),
   "batch": zod.string(),
   "qrCodeData": zod.string().nullish(),
+  "idCardUrl": zod.string().nullish(),
   "phone": zod.string().nullish(),
   "address": zod.string().nullish(),
   "cnic": zod.string().nullish(),
   "status": zod.string(),
   "enrollmentDate": zod.string(),
   "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Download the student's ID card PDF
+ */
+export const DownloadStudentIdCardPdfParams = zod.object({
+  "id": zod.coerce.string()
 })
 
 
@@ -167,6 +180,7 @@ export const GetStudentByEmailResponse = zod.object({
   "idNumber": zod.string(),
   "batch": zod.string(),
   "qrCodeData": zod.string().nullish(),
+  "idCardUrl": zod.string().nullish(),
   "phone": zod.string().nullish(),
   "address": zod.string().nullish(),
   "cnic": zod.string().nullish(),
@@ -203,7 +217,9 @@ export const ListAttendanceQueryParams = zod.object({
   "studentId": zod.coerce.string().optional(),
   "date": zod.coerce.string().optional(),
   "month": zod.coerce.string().optional(),
-  "batch": zod.coerce.string().optional()
+  "batch": zod.coerce.string().optional(),
+  "studentName": zod.coerce.string().optional(),
+  "status": zod.coerce.string().optional()
 })
 
 export const ListAttendanceResponseItem = zod.object({
@@ -276,6 +292,7 @@ export const ScanQrCodeResponse = zod.object({
   "idNumber": zod.string(),
   "batch": zod.string(),
   "qrCodeData": zod.string().nullish(),
+  "idCardUrl": zod.string().nullish(),
   "phone": zod.string().nullish(),
   "address": zod.string().nullish(),
   "cnic": zod.string().nullish(),
@@ -369,7 +386,7 @@ export const ListPaymentsResponse = zod.array(ListPaymentsResponseItem)
  */
 export const CreatePaymentBody = zod.object({
   "studentId": zod.string(),
-  "amount": zod.number(),
+  "amount": zod.number().optional().describe('Ignored by the server; fixed student fee is Rs 2000'),
   "description": zod.string().optional(),
   "dueDate": zod.string().nullish(),
   "notes": zod.string().nullish()
@@ -459,7 +476,7 @@ export const ListInvoicesResponse = zod.array(ListInvoicesResponseItem)
 export const CreateInvoiceBody = zod.object({
   "studentId": zod.string(),
   "paymentId": zod.string().nullish(),
-  "amount": zod.number(),
+  "amount": zod.number().optional().describe('Ignored by the server; fixed student fee is Rs 2000'),
   "dueDate": zod.string().nullish()
 })
 
@@ -533,6 +550,14 @@ export const UpdateInvoiceResponse = zod.object({
   "dueDate": zod.string().nullish(),
   "status": zod.string(),
   "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Download invoice PDF
+ */
+export const DownloadInvoicePdfParams = zod.object({
+  "id": zod.coerce.string()
 })
 
 

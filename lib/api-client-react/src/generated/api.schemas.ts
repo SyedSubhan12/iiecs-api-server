@@ -44,6 +44,8 @@ export interface Student {
   /** @nullable */
   qrCodeData?: string | null;
   /** @nullable */
+  idCardUrl?: string | null;
+  /** @nullable */
   phone?: string | null;
   /** @nullable */
   address?: string | null;
@@ -59,6 +61,7 @@ export interface StudentInput {
   fullName: string;
   idNumber: string;
   batch: string;
+  idCardUrl?: string;
   phone?: string;
   address?: string;
   cnic?: string;
@@ -66,6 +69,8 @@ export interface StudentInput {
 
 export interface StudentUpdate {
   fullName?: string;
+  /** @nullable */
+  idCardUrl?: string | null;
   /** @nullable */
   phone?: string | null;
   /** @nullable */
@@ -169,7 +174,8 @@ export interface Payment {
 
 export interface PaymentInput {
   studentId: string;
-  amount: number;
+  /** Ignored by the server; fixed student fee is Rs 2000 */
+  amount?: number;
   description?: string;
   /** @nullable */
   dueDate?: string | null;
@@ -209,7 +215,8 @@ export interface InvoiceInput {
   studentId: string;
   /** @nullable */
   paymentId?: string | null;
-  amount: number;
+  /** Ignored by the server; fixed student fee is Rs 2000 */
+  amount?: number;
   /** @nullable */
   dueDate?: string | null;
 }
@@ -241,6 +248,8 @@ studentId?: string;
 date?: string;
 month?: string;
 batch?: string;
+studentName?: string;
+status?: string;
 };
 
 export type GetMonthlyAttendanceReportParams = {

@@ -3,6 +3,7 @@ import { db, paymentsTable, studentsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 
 const router = Router();
+const FIXED_STUDENT_FEE_PKR = 2000;
 
 // List payments
 router.get("/payments", async (req, res) => {
@@ -46,7 +47,7 @@ router.get("/payments", async (req, res) => {
 router.post("/payments", async (req, res) => {
   const body = req.body as {
     studentId: string;
-    amount: number;
+    amount?: number;
     description?: string;
     dueDate?: string | null;
     notes?: string | null;
@@ -56,7 +57,7 @@ router.post("/payments", async (req, res) => {
     .insert(paymentsTable)
     .values({
       studentId: body.studentId,
-      amount: body.amount.toString(),
+      amount: FIXED_STUDENT_FEE_PKR.toString(),
       description: body.description ?? "Course Fee - IIECS-101",
       dueDate: body.dueDate ?? null,
       notes: body.notes ?? null,

@@ -738,6 +738,83 @@ export const useUpdateStudent = <TError = ErrorType<unknown>,
       return useMutation(getUpdateStudentMutationOptions(options));
     }
 
+export const getDownloadStudentIdCardPdfUrl = (id: string,) => {
+
+
+
+
+  return `/api/students/${id}/id-card.pdf`
+}
+
+/**
+ * @summary Download the student's ID card PDF
+ */
+export const downloadStudentIdCardPdf = async (id: string, options?: RequestInit): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadStudentIdCardPdfUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadStudentIdCardPdfQueryKey = (id: string,) => {
+    return [
+    `/api/students/${id}/id-card.pdf`
+    ] as const;
+    }
+
+
+export const getDownloadStudentIdCardPdfQueryOptions = <TData = Awaited<ReturnType<typeof downloadStudentIdCardPdf>>, TError = ErrorType<unknown>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadStudentIdCardPdf>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadStudentIdCardPdfQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadStudentIdCardPdf>>> = ({ signal }) => downloadStudentIdCardPdf(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadStudentIdCardPdf>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadStudentIdCardPdfQueryResult = NonNullable<Awaited<ReturnType<typeof downloadStudentIdCardPdf>>>
+export type DownloadStudentIdCardPdfQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Download the student's ID card PDF
+ */
+
+export function useDownloadStudentIdCardPdf<TData = Awaited<ReturnType<typeof downloadStudentIdCardPdf>>, TError = ErrorType<unknown>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadStudentIdCardPdf>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadStudentIdCardPdfQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
 export const getGetStudentByEmailUrl = (email: string,) => {
 
 
@@ -2029,4 +2106,81 @@ export const useUpdateInvoice = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getUpdateInvoiceMutationOptions(options));
     }
+
+export const getDownloadInvoicePdfUrl = (id: string,) => {
+
+
+
+
+  return `/api/invoices/${id}/pdf`
+}
+
+/**
+ * @summary Download invoice PDF
+ */
+export const downloadInvoicePdf = async (id: string, options?: RequestInit): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadInvoicePdfUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadInvoicePdfQueryKey = (id: string,) => {
+    return [
+    `/api/invoices/${id}/pdf`
+    ] as const;
+    }
+
+
+export const getDownloadInvoicePdfQueryOptions = <TData = Awaited<ReturnType<typeof downloadInvoicePdf>>, TError = ErrorType<unknown>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadInvoicePdf>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadInvoicePdfQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadInvoicePdf>>> = ({ signal }) => downloadInvoicePdf(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadInvoicePdf>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadInvoicePdfQueryResult = NonNullable<Awaited<ReturnType<typeof downloadInvoicePdf>>>
+export type DownloadInvoicePdfQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Download invoice PDF
+ */
+
+export function useDownloadInvoicePdf<TData = Awaited<ReturnType<typeof downloadInvoicePdf>>, TError = ErrorType<unknown>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadInvoicePdf>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadInvoicePdfQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 

@@ -9,6 +9,8 @@
 export interface StudentUpdate {
   fullName?: string;
   /** @nullable */
+  idCardUrl?: string | null;
+  /** @nullable */
   phone?: string | null;
   /** @nullable */
   address?: string | null;
