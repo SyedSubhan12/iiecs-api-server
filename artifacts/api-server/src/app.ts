@@ -1,23 +1,31 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import type { IncomingMessage, ServerResponse } from "http";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+// pino-http uses `export =` which is not directly callable under all
+// moduleResolution modes (e.g. Vercel uses "node"/"node16" instead of "bundler").
+// Casting to `any` is intentional and safe here — it bypasses the TS2349 error
+// without affecting runtime behaviour.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const createHttpLogger = pinoHttp as any;
+
 app.use(
-  pinoHttp({
+  createHttpLogger({
     logger,
     serializers: {
-      req(req) {
+      req(req: IncomingMessage & { id?: string | number }) {
         return {
-          id: req.id,
+          id: (req as { id?: string | number }).id,
           method: req.method,
           url: req.url?.split("?")[0],
         };
       },
-      res(res) {
+      res(res: ServerResponse) {
         return {
           statusCode: res.statusCode,
         };
@@ -25,6 +33,7 @@ app.use(
     },
   }),
 );
+
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
