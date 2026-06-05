@@ -1,0 +1,4 @@
+- [IIECS Auth Pattern](iiecs-auth.md) — Email-only auth; admin emails hardcoded; student role via DB lookup; session in localStorage key `iiecs_user`.
+- [QR Code Data Format](qr-format.md) — QR JSON shape and scan flow for the attendance scanner page.
+- [Seed Script Setup](seed-setup.md) — Must add drizzle-orm as direct dep to scripts package; run via pnpm filter not npx tsx.
+- [Logout Mutation](logout-mutation.md) — useLogout() mutate takes void (no args); passing `{}` causes TS2345 error.
