@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UPRISER Fee Invoice</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', 'Trebuchet MS', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .invoice-container {
+            width: 100%;
+            height: 280px;
+            background: white;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.12);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── HEADER ── */
+        .header-section {
+            flex: 0 0 auto;
+            padding: 10px 20px 10px 14px;
+            background: linear-gradient(90deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo-wrap img {
+            height: 52px;
+            width: 52px;
+            object-fit: contain;
+            border-radius: 6px;
+            display: block;
+            image-rendering: pixelated;
+        }
+
+        .header-text h1 {
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 0.4px;
+            line-height: 1.2;
+        }
+
+        .header-text p {
+            font-size: 10px;
+            opacity: 0.85;
+            font-style: italic;
+            margin-top: 2px;
+        }
+
+        .invoice-meta {
+            text-align: right;
+            font-size: 10px;
+            line-height: 1.5;
+            white-space: nowrap;
+        }
+
+        .invoice-meta strong {
+            display: block;
+            font-size: 12px;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+        }
+
+        /* ── BODY ── */
+        .body-section {
+            flex: 1;
+            padding: 12px 20px;
+            display: flex;
+            gap: 30px;
+            overflow: hidden;
+        }
+
+        .student-section, .fee-section {
+            flex: 1;
+            font-size: 11px;
+        }
+
+        .section-title {
+            font-weight: 700;
+            font-size: 11.5px;
+            margin-bottom: 7px;
+            color: #1e3c72;
+            border-bottom: 2px solid #2a5298;
+            padding-bottom: 3px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        .info-row {
+            display: flex;
+            margin-bottom: 4px;
+            gap: 8px;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #444;
+            min-width: 55px;
+        }
+
+        .info-value { color: #555; flex: 1; }
+
+        .fee-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px dotted #ddd;
+            margin-bottom: 6px;
+        }
+
+        .fee-desc { color: #333; font-weight: 500; }
+
+        .fee-amount { color: #1e3c72; font-weight: 700; }
+
+        .total-due {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            padding-top: 6px;
+            border-top: 2px solid #1e3c72;
+            font-weight: 700;
+            font-size: 12px;
+            color: #1e3c72;
+        }
+
+        /* ── FOOTER ── */
+        .footer-section {
+            background: #f8f9fa;
+            padding: 7px 20px;
+            font-size: 9px;
+            color: #666;
+            border-top: 1px solid #ddd;
+            text-align: center;
+        }
+
+        @media (max-width: 640px) {
+            .invoice-container { height: auto; min-height: 280px; }
+            .body-section { flex-direction: column; gap: 10px; }
+        }
+    </style>
+</head>
+<body>
+<div class="invoice-container">
+
+    <!-- HEADER -->
+    <div class="header-section">
+        <div class="header-brand">
+            <div class="logo-wrap">
+                <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/2wBDAQMDAwQDBAgEBAgQCwkLEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBD/wAARCAD6ARcDASIAAhEBAxEB/8QAHgABAAIDAQEBAQEAAAAAAAAAAAcJBggKAQUCAwT/xABmEAABAQIIBAkREQ4FBQAAAAAAAQIRAwQFBgcIEhMUITFxCRUXGBkyQVbUFiIzOFFXYYORlJakpcXR0tMkJTZERlJlgYSFprO0tcPi5CM0N0dVYmaVo8HCxOPwJyhDWHJjZ3WTof/EABwBAQABBQEBAAAAAAAAAAAAAAACAQMEBQYHCP/EAEARAAIBAwEEAw0FBgcAAAAAAAABAgMEEQUGEjHRIVGRBxMUFRYzQVNhcpKhsTI1VHGBIyQ0Q1LBFyIlNqLh8f/aAAwDAQACEQMRAD8AtTAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB4AuM5oWUYso5lHYsqFylS77npKN4Ol8HNBZZ9anUFln1qdQv+BvrKbx0vg5oLLPrU6gssLkYTqDwN9Y3jpfBzQWWUyMoe2GegPA31jeOl4HNDi5iHl2nrE6g8DfWN46Xwc0PG+tTqBzKZGU6g8DfWN46Xgc0Nln1idQ8u4PmJ1B4G+sbx0vgrP0GRzqYHJuzfTF74FmBjThuScSqeQACJUAAAAAAAAAAAAAAAAAAAAAAAAAgmu5STPaiOrFPKkKjyWlkmcMlNSbgccSLwMPdXsoxaBhOMhmG4NXwcI2nHMq570xoilVuyQ10efU12OSTwUuU6MqizEo3gvHRHHNCxtGcxsuuiQ100/HS12OSTwU1pRHJZTIZtvSlSbciEnkAAyigAAAAAAAAAAAAAABZfoMa4qYM83++BZec9dDVZCmmr5pxqQT14n9PsH0wRJOikbv7i8uvviChLLr6E2rn2sb3ISZskFdHn1Ndjkk8FMCrbzqTckSUkkXkAqnqTV2azlLtZyZlHtIVJyytN+VllFI5E9JpOgLy6k+MwrHHwMXZhEdCQcG1iaR7nK9FVC1gxpwdN4ZJPIABAqAAAAAAAAAAAAAAAAAAAazVzq5+tFWZyJRwk7FnZphllnAMGwXB/8AoQtu1hH5rrG6/FrRszcJ/tuZ7MvsJONKc1mKKZRstokyf5LKQ16Mj/O0TKOzeGsjombdYWhecVD60Jszf0/wPzx4pcLubiNwMY5FgsHafc2dujrT8bnLo8Z1rB04tSISeQADKKAAAAAAAAAAAAAAAAAAAAAGy+huculR577/ADVHC8ZUec9tW6mfW900zdpdSben+kGGed2GYLfX0UhovyWw3YdfWtor7LsT3pvHszcJ/tuZ7MvsJgXFKdSeYonFll+Ye0Vn7M229EWray5d3iy+wlmJizhKDxJFU8gAESoAAAAAAAAAAAAAABWdozmJuh5ehOHvcVpFlujObeh7NOHvcVpG0tfNIty4gAF8oAAAACR5pVd6YZ9Teik6pqzPw6S47eYPD6YRWCtWIRqDa42EhUbRzbLSY03DEu7+30+mqlzOMIt4y2ks9WX6S9Qtqt1Ldoxcn1JN/QjgEv60qsHvA7qxHyx/glOrLTfI93plMm5vX2PPKKNPc5+SFXmoa9bS6RN4VxDtXMynpN8ul0ZdjIvBIeoBS5vS7fivlT504KIKRZrSRDy9L03sFiMWsXsLhcA3ZttIymJhtVXGqJiQv09c06tNQhXi2+hJNZb6l0kJaddU05zpySXsZhoANnlRW8zC4gEva0qsHvA7qxHyx7rSqwe8DurEfLGke0mkR6Hcw7VzNitJv3095l2PkRACSY9Vzplk6NNxOOTNu4aDdaZ0wiquej0xpC8xT+OoBS5vS7fivlScdodLfSriHauZHxVe+ql2PkR4DIZ2zAnfMbBOKqScCw28wfzRBQtqw63yNpXOtM5eaY8bO3uKV1BVKMlKL4NPK7UYdWlUoycKqaa9D6GAAXiA8H7zpdTIc0SZc6nS6mQ195xRKHA9ABiEwAAAAAAAAAAAAAACs7RnNtQ/mnD3uK0iy3RnNvQ9mnD3uK0jaWvmkW5cQAC+UAAABY1VL5X2afu/5dDlcpY1VL5X2aeaP/Loc8r7rP3PT99fRnabDfx8vdf1RLxg9Je2k3pv0ZnBg9Je2k3pv0Z4BaP9qj1Gr9lmDke1gPwRy97m+VQRIRHtYD8Ecve5vlUEdls/JeNKHvL6o0GpL9yq+6/oacgA+mrjzMvyPHKX24lvAAPi+5f7WX5n0JS+xEiue3oojuaD+LZPhn3J7eiiO5oP4tk+GbqhJd7j+SMCov8AMzXutn6lc0f+gNezYStn6lc0f+gNez6P2F+46X6/U8k2k+8p/p/YAA640R6ymNE6PgOlxMhzRs5U/vmHS4mQ195xRKHA9ABiEwAAAAAAAAAAAAAACs7RnNtQ/mnD3uK0iy3Rm+SUPZpw97itI2lr5pFuXEAAvlAAAAWNVS+V9mnmj/y6HK5SxqqXyvs0/d/y6HPK+6x9z0/fX9ztNhv4+Xuv6ol4AHzt0nqwIhracr7Oz3B8ugCXiIa2nK+zszRD5dAG82Zl/rFt76+qNbqy/cK3uv6FcoAPrq48zL8jwul5yJbwAD4vuU++y/M+gqX2IgAFrLLhqHogHqD99P5U1DNvNEA9Qfvp/KmoZ9Sdzz/btD9fqeMbV/elT9PogADuDnD1nbJ/fMOlxMhzRs7ZnP4DpcTIa+84olDgegAxCYAAAAAAAAAAAAAABWdozm3oezTh73FaRZbozm3oezTh73FaRtLXzSLcuIABfKAAAAkeaVYimGYs3opNWas8MBkuJXmDwGl8VhbNuEahGuOhIJW1e200uNd0jgGJd2FvqFNU7mEZxTzhpNZ68P0l6hc1bWW9Rk4vrTa+hL2u1rB7/wDuVEfImxtT+lqkClLit4u5e0z0swDBfMsDA2Ly/vORMMvfds5X5DRQ280P/wBXnvX/ADR59t5oenWehVq1ChGMljDSSa6V6UsnU7Nald19Tpwq1JSTz0Ntrh+Zt4YnStN+SZ0zBlSQZeimFRGM3F7BXjUHasQ0G0mNhUVMaIuJTLD4c9vQvHel/GMnzra1JUa8JweGmmmuKeeKPV68FUpShNZTTNadQCiPekn6wjXlRqAUR70k6/jXlSQgd1S13U5TjGVeXa+Zzs9Ns4xclTXYuRqrrtawe/8A7lRHyJ7rtawe/wD7lRHyJEAPfaWzekThGUreHYuR5dPVr6MmlWl2vmS/rtawe/8A7lRHyI12tYPf/wByoj5EiAE/JnRvw0OxciPje/8AXS7XzMvpApapBpSwDi7nBpnpZe4L5lgYGxeWbzkTDL33bOV+QxAA2ttbUbOkqNCCjFcEkkl6eC9phVa1SvJ1KsnJv0t5YABfLZ6ztkz+A6XEyHNGzlT/AJeA6XEyGvvOKJQ4HoAMQmAAAAAAAAAAAAAAAVnaM5t6Hs04e9xWkWW6M5t6Hs04e9xWkbS180i3LiAAXygMw1PvZftf6xh5MBv9EsqF3vd+jnGOv+xRmH6n3sv2v9Yan3sv2v8AWMwBv/Etn/R83zKZMP1PvZftf6xL1X+f+oXp9506d6d4J6Ywa5uL382Ee+96DnbrzEQYOo7K6XqttK1uqe9CWMrLXBprpynxRkWl5WsaqrUXiS4PofHo9JsZrvv+3fdf+if4ZbrVpLEmQ0m8Qdze2OP00tOc2i5LlOYQCDl49yPZODyrb/lLmbp7V6o1h1PkiVNXL9Fu3v6Y1cv0W7e/pkVgyo9y7ZiD3lb/ADlzLUtpNSl0d8+SMP1PvZftf6w1PvZftf6xmAOqjollFYUPm+Zo5S3ukw/U+9l+1/rDU+9l+1/rGYAl4ls/6Pm+ZTJG84ZvaQ4P5sv7+3/p2XOd0V5p8czCkH0h03+Aw85DVKELe6lSprCWPoiQABgA9Z27Oc6XEyHNEzlTOh0upkNfecUShwPQAYhMAAAAAAAAAAAAAAArO0ZzbUP5pw97itIst0Zzb0PZpw97itI2lr5pFuXEAAvlASRxXTe/KH7KE8BG4M+w1GrY73eknnr9n6gkjium9+UP2UJ4D6UTjkWj8XYjUVhbcFCPstOVHuV27mIlJImj6H4p0z4xo6PS9VrXtZwqJYxnoz1r2kWj7AAOgKAAAAAAAAAHzY5OORYhGG4pG45YhYN1tm7aVz0fuJ0T+PFdN78ofsoTwGHzu9EMb6X8WwfHOSuddr0a0oJLCbXp9DK4MknjK8nyrgmAQ97dXlvjVRz7LsqdBTGwDQ3NzK6qutPi/wDwkAAWAfpNt1DpbTIc0TOVM6HS6mQ195xRKHA9ABiEwAAAAAAAAAAAAAACs7RnNvQ9mnD3uK0iy3RnNvQ9mnD3uK0jaWvmkW5cQAC+UAAABJE0fQ/FOmfGNEbgz9Ov/AKjqbucrHV1AmAEPmYUfen+lfxnSWWt+F140d3Gfb7M9RHBmAAN+UAAKSe6sgAh8HMS2kw8bnz/AOiuD7E7vRDG+l/FsHxwDmq1Xv8AUlUxjLb7SQABaAAAATEqLmOl1MhzRJlf0f3HS6mQ195xRKHA9ABiEwAAAAAAAAAAAAAACs/Rm9tRAvQnD3uK0ToQplq4UL1g9KEpfmZp/pDhGl3nhGorcX93e/e8KxatXUHtnus4nPV8a7G7Uv5zXwilbhRlUbhU47rRGUclHILxtjfqXc5hnshlXhI2N+pdzmF7IpV4UXvDIdTKbrKOQXi7G7Ut5zXwilbhQ2N2pbzmvhFK3Ch4ZDqY3WUdAvG2N2pen4mvhFK3CiqmuxRvMuiOs7PSjujyRdKZvSS1J2BxNYxCxi6vZPi0NCcfDNttq+EhYRcaq57kxIjJOncRqS3UijWCDzMKPvT/AEr+Mw83u0LygWiim7VL1T5rLLWkukqxHzdGYtc32G3nIIRi0+6g9s9zsTnq/YWt3CwqxrzTwur2rBTGTXEFv2sLqoc6tf15KXCCC67dVWgWiGrFPOkOj2YelM4JKWTUicc00jsPdXsoxaBhOMhoZphXwcI2mNlXPemNEU30drrRvG5LsXMruMr1BG/FdOD8or/6oPwHvFdOHdlHdxfcoPm5jKltFbOP2X2LmQwfGBeNsb1S5MWo18IpW4UebG7Ut5zXwilbhRwsr2DlnDLm6yjoF4uxu1Lec18IpW4Ue7G/Uu5zDPZDKvCSnhkOpjdZRyC8bY36l3OYZ7IZV4Se7HDUv5zKdkMq8JHhkOpjdZRwC8bY36ly/iZTshlXhIXQ36ly/iY6k4ZV4UPDIdTG6yjlH7n94zpeNZ00N6pemShlOyGVeFGzBi16qqtNFYrAABZJAAAAAAAAAAAAAAAAAAAAAH5y4kCrjPy2rke8gTXPSk1BwcJBzCizSNMva8+VREzLcY06OI1Wp61Y6Oou8nu72cdDecY6l7TOsdNutR3lbQ3t3GelLj+bRPzl5pRxokXLpUjZ5I+aYmWmJWdlJcsw4sif+Xa4OaR1jasrVYOmacFLzc9EkBucGCq1JySdhiQNxFIGL8lSEg1atJAo1tWXWnK9ENZS280ClPMq/wApcjYLZfVZfyvmuZXyWXaDJiSmBV/R9PnAg3Y/l57fcH7QbKVOZmw1UVJ3XEoMTs4q1k96NQSxDBcGSMLuLDW1bwj81OMyq/Ferd0HZ+pBxVf5PkU8ldUj/L+a5lhllTWfRJUVKllIeeR/naJn3Nc9Km5MCKfrpfIEbViZ6xysJQ5OGiCNSJAzfgpwJFXyixHVjSxdYCNQUYZW6WCYRtFWBRlUto5GlXcx4y240GLT7+ux8gtmtVf8r5rmU0HuN+Ld8Jt3sfy89vuD9oGx/wCT/FrmO84ftBnf4h7Peu+T5DyV1X1fzRdCmce2QI1WdlBGlsTCi6svxKssKiqnRRIBXK7cf+57XPynuzAiye/DXBzA8uNB9euyXIeTOq+pfauZPftj2yBUrPR92OYMAnvuvkBrno+vqBgP1uvkCnlzoXr12S5DyZ1X1L7VzJ5eeGA0X0nwtIyygkLIbMmtRBIFXJGr63bt/mMudY9t5n735DobK9t9RoRubaW9CXB9Kzh49JqLi3q2lV0ayxJcUfoAGYWQAAAAAAAAAAAAAAAAAAAAAAAAAAD+be0azKaLxCEWEiMXhGsrUCyv/wAQ3obxsqj8uI1QitCFJ0DFoKA4mWlWDYZYfhcX3E/5nl/dJ0681Cnbq1pynhyzhN4zjGcHa7G3tvZ1KvhE1HOOLS6+swwGcailJ29drruL+ONRSk7eu113F/HPKPJvV/w0/hfI73x1p3r4/EuZg4M41FKTt67XXcX8cailJ29drruL+OPJvV/w0/hfIeOtO9fH4lzMHBnGopSdvXa67i/jjUUpO3rtddxfxx5N6v8Ahp/C+RTx1p3r4/EuZg4M41FKTt67XXcX8cailJ29drruL+OPJvV/w0/hfIr460718fiXMwcGcailJ29drruL+ONRSk7eu113F/HHk3q/4afwvkPHWnevj8S5mDgzjUUpO3rtddxfxxqJ0nb1167i/jjyb1f8LP4XyKeO9O9fH4lzM4qy7ecmaKfSk5qu6RPQZMmc0zoSWmpxyakTwtIukD92g4S3YvLW0VXOtJl5pLB9AbH21W00WjRrxcZpPKaw10v0Hk+0NancalVqUpKSeOlPK4I/YAOnNMAAAAAAAAAAAAAAAAAAAAAAAAAAAeOTmHoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB//Z" alt="UPRISER Logo">
+            </div>
+            <div class="header-text">
+                <h1>UPRISER: INSTITUTE OF TECHNOLOGY</h1>
+                <p>Education and Beyond...</p>
+            </div>
+        </div>
+        <div class="invoice-meta">
+            <strong>Fee Invoice</strong>
+            <div>No: INV-202606-0001</div>
+            <div>Date: 2026-06-06</div>
+            <div>Due: Upon receipt</div>
+        </div>
+    </div>
+
+    <!-- BODY -->
+    <div class="body-section">
+        <!-- Student Details -->
+        <div class="student-section">
+            <div class="section-title">Student Details</div>
+            <div class="info-row">
+                <span class="info-label">Name:</span>
+                <span class="info-value">Meerab Faisal</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">ID:</span>
+                <span class="info-value">IIECS-001</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Batch:</span>
+                <span class="info-value">Batch A – C/C++ Algorithms</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Email:</span>
+                <span class="info-value">meerab.faisal@student.iiecs.edu</span>
+            </div>
+        </div>
+
+        <!-- Fee Breakdown -->
+        <div class="fee-section">
+            <div class="section-title">Fee Breakdown</div>
+            <div class="fee-item">
+                <span class="fee-desc">Course Fee – C/C++ Algorithms</span>
+                <span class="fee-amount">Rs 2,000</span>
+            </div>
+            <div class="total-due">
+                <span>Total Amount Due</span>
+                <span>Rs 2,000 /-</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="footer-section">
+        Thank you for your enrollment with UPRISER: INSTITUTE OF TECHNOLOGY &nbsp;|&nbsp; For inquiries: admin@iiecs.edu
+    </div>
+
+</div>
+</body>
+</html>
