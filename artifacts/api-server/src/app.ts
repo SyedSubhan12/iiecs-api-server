@@ -1,11 +1,11 @@
-import express, { type Express } from "express";
+import express from "express";
 import cors from "cors";
 import type { IncomingMessage, ServerResponse } from "http";
 import pinoHttp from "pino-http";
-import router from "./routes";
-import { logger } from "./lib/logger";
+import router from "./routes/index.js";
+import { logger } from "./lib/logger.js";
 
-const app: Express = express();
+const app = express();
 
 // pino-http uses `export =` which is not directly callable under all
 // moduleResolution modes (e.g. Vercel uses "node"/"node16" instead of "bundler").

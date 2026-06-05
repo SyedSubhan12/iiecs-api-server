@@ -1,13 +1,13 @@
-import { Router, type IRouter } from "express";
-import healthRouter from "./health";
-import authRouter from "./auth";
-import studentsRouter from "./students";
-import attendanceRouter from "./attendance";
-import paymentsRouter from "./payments";
-import invoicesRouter from "./invoices";
-import dashboardRouter from "./dashboard";
+import { Router } from "express";
+import healthRouter from "./health.js";
+import authRouter from "./auth.js";
+import studentsRouter from "./students.js";
+import attendanceRouter from "./attendance.js";
+import paymentsRouter from "./payments.js";
+import invoicesRouter from "./invoices.js";
+import dashboardRouter from "./dashboard.js";
 
-const router: IRouter = Router();
+const router = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
