@@ -1,43 +1,31 @@
-import * as fs from "fs";
-import * as path from "path";
-import { PDFParse } from "pdf-parse";
-import { loadImage, createCanvas } from "@napi-rs/canvas";
-import jsQR from "jsqr";
+const fs = require("fs");
+const path = require("path");
+const pdf: any = require('pdf-parse');
 
-async function run() {
+/**
+ * Simple script to parse all PDF files in the id_Cards directory and log their text length.
+ * Uses the functional pdf-parse API.
+ */
+async function runDecodeAllQrs() {
   const dirPath = "/home/zaro/app_manager/id_Cards";
-  const files = fs.readdirSync(dirPath).filter(f => f.endsWith(".pdf"));
-  console.log(`Decoding QR codes for ${files.length} files...`);
+  const files = fs.readdirSync(dirPath).filter((f: string) => f.endsWith('.pdf'));
+  console.log(`Parsing ${files.length} PDF files...`);
 
   for (const file of files) {
     const filePath = path.join(dirPath, file);
     const dataBuffer = fs.readFileSync(filePath);
     const uint8Array = new Uint8Array(dataBuffer);
-    
     try {
-      const parser = new PDFParse(uint8Array);
-      await parser.load();
-      const screenshot = await parser.getScreenshot({ imageBuffer: true, scale: 2 });
-      const page = screenshot.pages[0];
-      
-      const img = await loadImage(Buffer.from(page.data));
-      const canvas = createCanvas(img.width, img.height);
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(img, 0, 0);
-      
-      const imageData = ctx.getImageData(0, 0, img.width, img.height);
-      const code = jsQR(imageData.data, imageData.width, imageData.height);
-      
-      if (code) {
-        console.log(`File: ${file}`);
-        console.log(`  QR Data: ${code.data}`);
-      } else {
-        console.log(`File: ${file} -> QR Code NOT DECODED`);
+      const pdfData = await pdf(uint8Array);
+      console.log(`File: ${file} – text length: ${pdfData.text?.length ?? 0}`);
+      if (pdfData.info) {
+        console.log('--- PDF Info ---');
+        console.dir(pdfData.info, { depth: null });
       }
-    } catch (err: any) {
-      console.log(`File: ${file} -> ERROR: ${err.message}`);
+    } catch (err) {
+      console.error(`Error processing ${file}:`, err);
     }
   }
 }
 
-run();
+runDecodeAllQrs();
