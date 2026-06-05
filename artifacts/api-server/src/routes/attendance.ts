@@ -444,4 +444,10 @@ router.get("/attendance/today", async (req, res) => {
   );
 });
 
+// Delete ALL attendance records (admin danger zone)
+router.delete("/attendance", async (_req, res) => {
+  const result = await db.delete(attendanceTable).returning({ id: attendanceTable.id });
+  res.json({ deleted: result.length });
+});
+
 export default router;

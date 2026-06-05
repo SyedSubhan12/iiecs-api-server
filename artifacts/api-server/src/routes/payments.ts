@@ -153,4 +153,25 @@ router.patch("/payments/:id", async (req, res) => {
   });
 });
 
+// Delete payment by ID
+router.delete("/payments/:id", async (req, res) => {
+  const result = await db
+    .delete(paymentsTable)
+    .where(eq(paymentsTable.id, req.params.id))
+    .returning({ id: paymentsTable.id });
+
+  if (result.length === 0) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  res.json({ deleted: result[0].id });
+});
+
+// Delete ALL payments (admin danger zone)
+router.delete("/payments", async (_req, res) => {
+  const result = await db.delete(paymentsTable).returning({ id: paymentsTable.id });
+  res.json({ deleted: result.length });
+});
+
 export default router;

@@ -3,11 +3,15 @@ import {
   useListStudents,
   useCreateStudent,
   useGetStudentProgress,
+  useCreateInvoice,
   getListStudentsQueryKey,
   getGetStudentProgressQueryKey,
+  getListInvoicesQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AdminLayout } from "@/components/AdminLayout";
+
+const API_BASE = "/api";
 
 function ProgressPanel({ studentId, idCardUrl }: { studentId: string; idCardUrl?: string | null }) {
   const { data, isLoading } = useGetStudentProgress(studentId, {
@@ -50,6 +54,61 @@ function ProgressPanel({ studentId, idCardUrl }: { studentId: string; idCardUrl?
           </a>
         </div>
       )}
+    </div>
+  );
+}
+
+interface InvoiceResult {
+  id: string;
+  invoiceNumber: string;
+}
+
+function InvoiceButton({ studentId }: { studentId: string }) {
+  const queryClient = useQueryClient();
+  const [result, setResult] = useState<InvoiceResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const invoiceMutation = useCreateInvoice({
+    mutation: {
+      onSuccess: (data) => {
+        setResult({ id: data.id, invoiceNumber: data.invoiceNumber });
+        setError(null);
+        queryClient.invalidateQueries({ queryKey: getListInvoicesQueryKey() });
+      },
+      onError: () => {
+        setError("Failed to generate invoice");
+      },
+    },
+  });
+
+  function handleGenerate(e: React.MouseEvent) {
+    e.stopPropagation();
+    setResult(null);
+    setError(null);
+    invoiceMutation.mutate({ data: { studentId } });
+  }
+
+  return (
+    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+      <button
+        onClick={handleGenerate}
+        disabled={invoiceMutation.isPending}
+        className="text-xs px-2.5 py-1 rounded border font-medium bg-violet-500/15 text-violet-400 border-violet-500/30 hover:bg-violet-500/25 transition-colors disabled:opacity-50 whitespace-nowrap"
+      >
+        {invoiceMutation.isPending ? "Generating…" : "📄 Invoice"}
+      </button>
+      {result && (
+        <a
+          href={`${API_BASE}/invoices/${result.id}/pdf`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-emerald-400 hover:underline font-semibold whitespace-nowrap"
+          title={result.invoiceNumber}
+        >
+          ✅ View PDF
+        </a>
+      )}
+      {error && <span className="text-xs text-red-400">{error}</span>}
     </div>
   );
 }
@@ -154,7 +213,7 @@ export default function StudentsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  {["ID Number", "Name", "Email", "Batch", "Status", "Enrolled", ""].map((h) => (
+                  {["ID Number", "Name", "Email", "Batch", "Status", "Enrolled", "Invoice", ""].map((h) => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">
                       {h}
                     </th>
@@ -185,13 +244,16 @@ export default function StudentsPage() {
                       <td className="px-4 py-3 text-muted-foreground text-xs">
                         {new Date(s.enrollmentDate).toLocaleDateString()}
                       </td>
+                      <td className="px-4 py-3">
+                        <InvoiceButton studentId={s.id} />
+                      </td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">
                         {selectedId === s.id ? "▲" : "▼"}
                       </td>
                     </tr>
                     {selectedId === s.id && (
                       <tr key={`${s.id}-prog`} className="border-b border-border bg-muted/10">
-                        <td colSpan={7} className="px-4 py-2">
+                        <td colSpan={8} className="px-4 py-2">
                           <ProgressPanel studentId={s.id} idCardUrl={s.idCardUrl} />
                         </td>
                       </tr>
