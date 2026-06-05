@@ -344,6 +344,63 @@ router.post("/invoices/generate-monthly", async (req, res) => {
   });
 });
 
+// Preview monthly invoices before generating
+router.post("/invoices/preview-monthly", async (req, res) => {
+  const { month } = (req.body ?? {}) as { month?: string };
+  const now = new Date();
+  const targetMonth = month || format(now, "yyyy-MM");
+  const [yr, mo] = targetMonth.split("-").map(Number);
+
+  // 15th of the target month as due date
+  const dueDate = format(new Date(yr, mo - 1, 15), "yyyy-MM-dd");
+  const prefix = `INV-${targetMonth.replace("-", "")}`;
+
+  const students = await db.select().from(studentsTable);
+  const toCreate = [];
+  let totalSkipped = 0;
+
+  // Count existing database invoices for this month (for numbering)
+  const allForMonth = await db
+    .select()
+    .from(invoicesTable)
+    .where(like(invoicesTable.invoiceNumber, `${prefix}%`));
+
+  let numberingCounter = allForMonth.length;
+
+  for (const student of students) {
+    // Check if invoice already exists for this student this month
+    const existing = await db
+      .select()
+      .from(invoicesTable)
+      .where(and(eq(invoicesTable.studentId, student.id), like(invoicesTable.invoiceNumber, `${prefix}%`)))
+      .limit(1);
+
+    if (existing.length > 0) {
+      totalSkipped++;
+      continue;
+    }
+
+    numberingCounter++;
+    const invoiceNumber = `${prefix}-${numberingCounter.toString().padStart(4, "0")}`;
+
+    toCreate.push({
+      studentId: student.id,
+      studentName: student.fullName,
+      studentIdNumber: student.idNumber,
+      invoiceNumber,
+      amount: FIXED_STUDENT_FEE_PKR,
+      dueDate,
+    });
+  }
+
+  res.json({
+    month: targetMonth,
+    totalToCreate: toCreate.length,
+    totalSkipped,
+    toCreate,
+  });
+});
+
 router.get("/invoices/:id/pdf", async (req, res) => {
   const auth = await getAuthContext(req);
   if (!auth) {

@@ -41,6 +41,7 @@ import type {
   Payment,
   PaymentInput,
   PaymentUpdate,
+  PreviewMonthlyResult,
   QrScanInput,
   QrScanResult,
   Student,
@@ -1956,6 +1957,77 @@ export const useGenerateMonthlyInvoices = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getGenerateMonthlyInvoicesMutationOptions(options));
+    }
+
+export const getPreviewMonthlyInvoicesUrl = () => {
+
+
+
+
+  return `/api/invoices/preview-monthly`
+}
+
+/**
+ * @summary Preview monthly invoices before generating
+ */
+export const previewMonthlyInvoices = async (generateMonthlyInput?: GenerateMonthlyInput, options?: RequestInit): Promise<PreviewMonthlyResult> => {
+
+  return customFetch<PreviewMonthlyResult>(getPreviewMonthlyInvoicesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      generateMonthlyInput,)
+  }
+);}
+
+
+
+
+export const getPreviewMonthlyInvoicesMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewMonthlyInvoices>>, TError,{data?: BodyType<GenerateMonthlyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof previewMonthlyInvoices>>, TError,{data?: BodyType<GenerateMonthlyInput>}, TContext> => {
+
+const mutationKey = ['previewMonthlyInvoices'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof previewMonthlyInvoices>>, {data?: BodyType<GenerateMonthlyInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  previewMonthlyInvoices(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PreviewMonthlyInvoicesMutationResult = NonNullable<Awaited<ReturnType<typeof previewMonthlyInvoices>>>
+    export type PreviewMonthlyInvoicesMutationBody = BodyType<GenerateMonthlyInput> | undefined
+    export type PreviewMonthlyInvoicesMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Preview monthly invoices before generating
+ */
+export const usePreviewMonthlyInvoices = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewMonthlyInvoices>>, TError,{data?: BodyType<GenerateMonthlyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof previewMonthlyInvoices>>,
+        TError,
+        {data?: BodyType<GenerateMonthlyInput>},
+        TContext
+      > => {
+      return useMutation(getPreviewMonthlyInvoicesMutationOptions(options));
     }
 
 export const getGetInvoiceUrl = (id: string,) => {

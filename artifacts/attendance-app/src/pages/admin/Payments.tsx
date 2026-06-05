@@ -5,10 +5,12 @@ import {
   useCreatePayment,
   useListStudents,
   useGenerateMonthlyInvoices,
+  usePreviewMonthlyInvoices,
   useListInvoices,
   getListPaymentsQueryKey,
   getListInvoicesQueryKey,
 } from "@workspace/api-client-react";
+import type { PreviewMonthlyResult } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AdminLayout } from "@/components/AdminLayout";
 
@@ -83,10 +85,19 @@ export default function PaymentsPage() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   });
   const [generateResult, setGenerateResult] = useState<{ created: number; skipped: number; month: string } | null>(null);
+  const [previewResult, setPreviewResult] = useState<PreviewMonthlyResult | null>(null);
   const [form, setForm] = useState({ studentId: "", amount: "2000", description: "Course Fee - IIECS-101", dueDate: "" });
   const [clearConfirm, setClearConfirm] = useState<"attendance" | "payments" | null>(null);
   const [clearStatus, setClearStatus] = useState<string | null>(null);
   const queryClient = useQueryClient();
+
+  const previewMutation = usePreviewMonthlyInvoices({
+    mutation: {
+      onSuccess: (data) => {
+        setPreviewResult(data);
+      },
+    },
+  });
 
   const { data: payments, isLoading } = useListPayments(
     { status: statusFilter || undefined },
@@ -120,6 +131,7 @@ export default function PaymentsPage() {
     mutation: {
       onSuccess: (data) => {
         setGenerateResult({ created: data.created, skipped: data.skipped, month: data.month });
+        setPreviewResult(null);
         queryClient.invalidateQueries({ queryKey: getListInvoicesQueryKey() });
       },
     },
@@ -249,48 +261,123 @@ export default function PaymentsPage() {
       {/* Generate Invoices Modal */}
       {showInvoiceModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-card-border rounded-xl p-6 w-full max-w-md shadow-xl">
+          <div className={`bg-card border border-card-border rounded-xl p-6 w-full shadow-xl transition-all ${previewResult ? "max-w-2xl" : "max-w-md"}`}>
             <h3 className="text-base font-semibold text-foreground mb-1">Generate Monthly Invoices</h3>
-            <p className="text-xs text-muted-foreground mb-5">
-              Creates a Rs 2,000 invoice for every student who doesn't already have one for the selected month. Existing invoices are skipped.
+            <p className="text-xs text-muted-foreground mb-4">
+              Creates a Rs 2,000 invoice for every student who doesn't already have one for the selected month.
             </p>
 
-            <div className="mb-5">
-              <label className="block text-xs text-muted-foreground mb-1.5">Month</label>
-              <input
-                type="month"
-                value={invoiceMonth}
-                onChange={(e) => { setInvoiceMonth(e.target.value); setGenerateResult(null); }}
-                className="w-full px-3 py-2 rounded-md bg-background border border-input text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-            </div>
-
-            {generateResult && (
-              <div className="mb-5 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-sm">
-                <div className="font-semibold text-emerald-400 mb-1">Done — {generateResult.month}</div>
-                <div className="text-foreground">
-                  <span className="text-emerald-400 font-bold">{generateResult.created}</span> invoice{generateResult.created !== 1 ? "s" : ""} created &nbsp;·&nbsp;
-                  <span className="text-muted-foreground">{generateResult.skipped} already existed</span>
+            {!previewResult && !generateResult && (
+              <>
+                <div className="mb-5">
+                  <label className="block text-xs text-muted-foreground mb-1.5">Month</label>
+                  <input
+                    type="month"
+                    value={invoiceMonth}
+                    onChange={(e) => { setInvoiceMonth(e.target.value); }}
+                    className="w-full px-3 py-2 rounded-md bg-background border border-input text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
                 </div>
-              </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => previewMutation.mutate({ data: { month: invoiceMonth } })}
+                    disabled={previewMutation.isPending}
+                    className="flex-1 px-4 py-2 bg-primary text-primary-foreground text-sm font-semibold rounded-md hover:opacity-90 disabled:opacity-50 transition-opacity"
+                  >
+                    {previewMutation.isPending ? "Loading Preview..." : "Preview Invoices"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowInvoiceModal(false); }}
+                    className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
             )}
 
-            <div className="flex gap-3">
-              <button
-                onClick={handleGenerateInvoices}
-                disabled={generateMutation.isPending}
-                className="flex-1 px-4 py-2 bg-primary text-primary-foreground text-sm font-semibold rounded-md hover:opacity-90 disabled:opacity-50 transition-opacity"
-              >
-                {generateMutation.isPending ? "Generating..." : "Generate Invoices"}
-              </button>
-              <button
-                type="button"
-                onClick={() => { setShowInvoiceModal(false); setGenerateResult(null); }}
-                className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
-              >
-                Close
-              </button>
-            </div>
+            {previewResult && !generateResult && (
+              <>
+                <div className="mb-4 p-4 rounded-lg bg-secondary/30 border border-border text-sm flex justify-between items-center">
+                  <div>
+                    <span className="text-muted-foreground">Month:</span> <strong className="text-foreground">{previewResult.month}</strong>
+                  </div>
+                  <div>
+                    <span className="text-emerald-400 font-bold">{previewResult.totalToCreate}</span> to generate &nbsp;·&nbsp;
+                    <span className="text-muted-foreground">{previewResult.totalSkipped} skipped</span>
+                  </div>
+                </div>
+
+                <div className="mb-5 max-h-60 overflow-y-auto border border-border rounded-lg bg-background">
+                  {previewResult.toCreate.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-muted-foreground">
+                      No new invoices to generate for this month. All students already have invoices.
+                    </div>
+                  ) : (
+                    <table className="w-full text-xs text-left">
+                      <thead className="sticky top-0 bg-muted border-b border-border">
+                        <tr>
+                          <th className="px-3 py-2 text-muted-foreground">Student</th>
+                          <th className="px-3 py-2 text-muted-foreground">ID</th>
+                          <th className="px-3 py-2 text-muted-foreground">Invoice #</th>
+                          <th className="px-3 py-2 text-muted-foreground text-right">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {previewResult.toCreate.map((item) => (
+                          <tr key={item.studentId} className="border-b border-border last:border-0 hover:bg-muted/10">
+                            <td className="px-3 py-2 font-medium text-foreground">{item.studentName}</td>
+                            <td className="px-3 py-2 text-muted-foreground font-mono">{item.studentIdNumber}</td>
+                            <td className="px-3 py-2 text-primary font-mono">{item.invoiceNumber}</td>
+                            <td className="px-3 py-2 text-right font-mono text-foreground">PKR {item.amount.toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleGenerateInvoices}
+                    disabled={generateMutation.isPending || previewResult.totalToCreate === 0}
+                    className="flex-1 px-4 py-2 bg-primary text-primary-foreground text-sm font-semibold rounded-md hover:opacity-90 disabled:opacity-50 transition-opacity"
+                  >
+                    {generateMutation.isPending ? "Generating..." : `Confirm & Generate (${previewResult.totalToCreate})`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewResult(null)}
+                    disabled={generateMutation.isPending}
+                    className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+                  >
+                    Back
+                  </button>
+                </div>
+              </>
+            )}
+
+            {generateResult && (
+              <>
+                <div className="mb-5 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-sm">
+                  <div className="font-semibold text-emerald-400 mb-1">Done — {generateResult.month}</div>
+                  <div className="text-foreground">
+                    <span className="text-emerald-400 font-bold">{generateResult.created}</span> invoice{generateResult.created !== 1 ? "s" : ""} created &nbsp;·&nbsp;
+                    <span className="text-muted-foreground">{generateResult.skipped} already existed</span>
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => { setShowInvoiceModal(false); setGenerateResult(null); }}
+                    className="px-4 py-2 bg-primary text-primary-foreground text-sm font-semibold rounded-md hover:opacity-90 transition-opacity"
+                  >
+                    Close
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -434,7 +521,7 @@ export default function PaymentsPage() {
                       <td className="px-4 py-3 font-medium text-foreground text-xs">{inv.studentName}</td>
                       <td className="px-4 py-3 font-mono text-foreground font-semibold text-xs">PKR {inv.amount.toLocaleString()}</td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">
-                        {new Date(inv.issuedDate).toLocaleDateString()}
+                        {inv.issuedDate ? new Date(inv.issuedDate).toLocaleDateString() : "—"}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">{inv.dueDate ?? "—"}</td>
                       <td className="px-4 py-3"><StatusBadge status={inv.status} /></td>

@@ -237,6 +237,22 @@ export interface GenerateMonthlyResult {
   invoices?: Invoice[];
 }
 
+export interface PreviewInvoiceItem {
+  studentId: string;
+  studentName: string;
+  studentIdNumber: string;
+  invoiceNumber: string;
+  amount: number;
+  dueDate: string;
+}
+
+export interface PreviewMonthlyResult {
+  month: string;
+  totalToCreate: number;
+  totalSkipped: number;
+  toCreate: PreviewInvoiceItem[];
+}
+
 export type ListStudentsParams = {
 batch?: string;
 status?: string;

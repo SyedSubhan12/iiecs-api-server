@@ -1,13 +1,18 @@
+import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   useGetStudentByEmail,
   useListPayments,
   useListInvoices,
+  useCreateInvoice,
   getGetStudentByEmailQueryKey,
   getListPaymentsQueryKey,
   getListInvoicesQueryKey,
 } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { StudentLayout } from "@/components/StudentLayout";
+
+const API_BASE = "/api";
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
@@ -22,6 +27,45 @@ function StatusBadge({ status }: { status: string }) {
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${map[status] ?? "bg-muted text-muted-foreground border-border"}`}>
       {status.charAt(0).toUpperCase() + status.slice(1)}
     </span>
+  );
+}
+
+function StudentInvoiceButton({ studentId }: { studentId: string }) {
+  const queryClient = useQueryClient();
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const invoiceMutation = useCreateInvoice({
+    mutation: {
+      onSuccess: () => {
+        setSuccess(true);
+        setError(null);
+        queryClient.invalidateQueries({ queryKey: getListInvoicesQueryKey({ studentId }) });
+      },
+      onError: () => {
+        setError("Failed to generate invoice");
+      },
+    },
+  });
+
+  function handleGenerate() {
+    setSuccess(false);
+    setError(null);
+    invoiceMutation.mutate({ data: { studentId } });
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        onClick={handleGenerate}
+        disabled={invoiceMutation.isPending}
+        className="text-xs px-3 py-1.5 rounded bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+      >
+        {invoiceMutation.isPending ? "Generating…" : "📄 Generate Invoice"}
+      </button>
+      {success && <span className="text-xs text-emerald-400 font-semibold">Generated</span>}
+      {error && <span className="text-xs text-red-400">{error}</span>}
+    </div>
   );
 }
 
@@ -111,8 +155,9 @@ export default function StudentPayments() {
 
       {/* Invoices */}
       <div className="bg-card border border-card-border rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-border">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between flex-wrap gap-2">
           <h3 className="text-sm font-semibold text-foreground">Invoices</h3>
+          {student?.id && <StudentInvoiceButton studentId={student.id} />}
         </div>
         {invoicesLoading ? (
           <div className="p-6 text-center text-muted-foreground text-sm">Loading...</div>
@@ -123,7 +168,7 @@ export default function StudentPayments() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  {["Invoice #", "Amount", "Issued", "Due", "Status"].map((h) => (
+                  {["Invoice #", "Amount", "Issued", "Due", "Status", "Actions"].map((h) => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">
                       {h}
                     </th>
@@ -140,6 +185,16 @@ export default function StudentPayments() {
                     </td>
                     <td className="px-4 py-3 text-muted-foreground text-xs">{inv.dueDate ?? "—"}</td>
                     <td className="px-4 py-3"><StatusBadge status={inv.status} /></td>
+                    <td className="px-4 py-3">
+                      <a
+                        href={`${API_BASE}/invoices/${inv.id}/pdf`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs px-2.5 py-1 rounded border font-medium bg-secondary text-secondary-foreground border-border hover:opacity-90 transition-all whitespace-nowrap"
+                      >
+                        ⬇ PDF
+                      </a>
+                    </td>
                   </tr>
                 ))}
               </tbody>
