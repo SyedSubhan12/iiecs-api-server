@@ -5,7 +5,7 @@ import pinoHttp from "pino-http";
 import router from "./routes/index.js";
 import { logger } from "./lib/logger.js";
 
-const app = express();
+const app: any = express();
 
 // pino-http uses `export =` which is not directly callable under all
 // moduleResolution modes (e.g. Vercel uses "node"/"node16" instead of "bundler").
