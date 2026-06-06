@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db, invoicesTable, studentsTable } from "@workspace/db";
 import { eq, and, like } from "drizzle-orm";
 import { format } from "date-fns";
-import puppeteer from "puppeteer-core";
+import PDFDocument from "pdfkit";
 import ejs from "ejs";
 import path from "path";
 import { readFileSync } from "fs";
@@ -73,7 +73,7 @@ async function getAuthContext(req: {
   return { role: "student", email, studentId: student.id };
 }
 
-async function buildInvoicePdfBuffer(input: {
+export async function buildInvoicePdfBuffer(input: {
   invoiceNumber: string;
   issuedDate: Date;
   dueDate: string | null;
@@ -81,43 +81,147 @@ async function buildInvoicePdfBuffer(input: {
   amountPkr: number;
   student: { fullName: string; idNumber: string; batch: string; email: string };
 }): Promise<Buffer> {
-  // Render the EJS template with escaped data (EJS auto-escapes <%= %> tags)
-  const html = await ejs.renderFile(TEMPLATE_PATH, {
-    logoBase64: LOGO_BASE64,
-    invoiceNumber: input.invoiceNumber,
-    issuedDate: format(input.issuedDate, "yyyy-MM-dd"),
-    dueDate: input.dueDate ?? "Upon receipt",
-    status: input.status,
-    studentName: input.student.fullName,
-    studentId: input.student.idNumber,
-    batch: input.student.batch,
-    email: input.student.email,
-    amountFormatted: input.amountPkr.toLocaleString("en-PK"),
-  });
+  return new Promise<Buffer>((resolve, reject) => {
+    // Compact page – fits all content in ~210pt height, far less than A4's 842pt
+    const doc = new PDFDocument({ size: "A4", margin: 0, autoFirstPage: true });
+    const chunks: Buffer[] = [];
+    doc.on("data", (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
 
-  // Locate the already-downloaded Chromium binary (cached from a previous install)
-  const CHROMIUM_PATH =
-    process.env.PUPPETEER_EXECUTABLE_PATH ??
-    "/home/zaro/.cache/puppeteer/chrome/linux-146.0.7680.31/chrome-linux64/chrome";
+    const W = doc.page.width;   // 595
+    const H = doc.page.height;  // 842
 
-  // Convert HTML to PDF via headless Chromium
-  const browser = await puppeteer.launch({
-    executablePath: CHROMIUM_PATH,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-    headless: true,
-  });
-  try {
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "load" });
-    const pdfUint8 = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: { top: "10mm", right: "10mm", bottom: "10mm", left: "10mm" },
+    // ── HEADER (0..70) ──────────────────────────────────────────────────────
+    const headerH = 70;
+    doc.rect(0, 0, W, headerH).fill("#1e3c72");
+
+    // Logo
+    if (LOGO_BASE64) {
+      const base64Data = LOGO_BASE64.split(",")[1];
+      if (base64Data) {
+        const logoBuf = Buffer.from(base64Data, "base64");
+        try { doc.image(logoBuf, 14, 10, { width: 48, height: 48 }); } catch { /* ignore */ }
+      }
+    }
+
+    // Brand
+    doc.fillColor("white").font("Helvetica-Bold").fontSize(15)
+      .text("UPRISER: INSTITUTE OF TECHNOLOGY", 72, 18, { lineBreak: false });
+    doc.fillColor("white").font("Helvetica-Oblique").fontSize(9)
+      .text("Education and Beyond...", 72, 37, { lineBreak: false });
+
+    // Invoice meta (right-aligned)
+    const metaLines = [
+      `Fee Invoice`,
+      `No: ${input.invoiceNumber}`,
+      `Date: ${format(input.issuedDate, "yyyy-MM-dd")}`,
+      `Due: ${input.dueDate ?? "Upon receipt"}`,
+    ];
+    const metaRightX = W - 20;
+    metaLines.forEach((line, i) => {
+      const isBold = i === 0;
+      doc.fillColor("white")
+        .font(isBold ? "Helvetica-Bold" : "Helvetica")
+        .fontSize(isBold ? 12 : 9)
+        .text(line, 0, 10 + i * 14, { width: metaRightX, align: "right", lineBreak: false });
     });
-    return Buffer.from(pdfUint8);
-  } finally {
-    await browser.close();
-  }
+
+    // ── BODY (starts at 80) ──────────────────────────────────────────────────
+    const bodyY = headerH + 10;
+    // Left column: 20..282  Right column: 297..577  gap=15
+    const leftColW = 262;
+    const rightColW = 280;
+    const leftX = 20;
+    const rightX = 297;
+    // Amount column inside right column: last 70pt for numbers
+    const amtW = 70;
+    const descW = rightColW - amtW - 8;
+
+    // Section title helper
+    const sectionTitle = (label: string, x: number, y: number, colWidth: number) => {
+      doc.fillColor("#1e3c72").font("Helvetica-Bold").fontSize(11)
+        .text(label.toUpperCase(), x, y, { width: colWidth, lineBreak: false });
+      doc.moveTo(x, y + 14).lineTo(x + colWidth, y + 14)
+        .lineWidth(1.5).strokeColor("#2a5298").stroke();
+    };
+
+    // Row helper – label and value on same absolute Y, value uses smaller font if needed
+    const infoRow = (label: string, value: string, x: number, y: number, colWidth: number) => {
+      const labelW = 48;
+      const valW = colWidth - labelW - 4;
+      doc.fillColor("#444").font("Helvetica-Bold").fontSize(10)
+        .text(label, x, y, { width: labelW, lineBreak: false });
+      // Use smaller font for email to prevent wrap
+      const isEmail = value.includes("@");
+      doc.fillColor("#555").font("Helvetica").fontSize(isEmail ? 8.5 : 10)
+        .text(value, x + labelW + 4, isEmail ? y + 1 : y,
+          { width: valW, lineBreak: false, ellipsis: true });
+    };
+
+    // ── Student Details (left) ───────────────────────────────────────────────
+    sectionTitle("Student Details", leftX, bodyY, leftColW);
+
+    const rowH = 17;
+    const rows = [
+      { label: "Name:", value: input.student.fullName },
+      { label: "ID:", value: input.student.idNumber },
+      { label: "Batch:", value: input.student.batch },
+      { label: "Email:", value: input.student.email },
+      { label: "Status:", value: input.status },
+    ];
+    rows.forEach((row, i) => {
+      infoRow(row.label, row.value, leftX, bodyY + 20 + i * rowH, leftColW);
+    });
+
+    // ── Fee Breakdown (right) ─────────────────────────────────────────────────
+    sectionTitle("Fee Breakdown", rightX, bodyY, rightColW);
+
+    // Fee item row – description uses descW, amount right-aligned in last amtW
+    const feeItemY = bodyY + 20;
+    // Shorten desc to "Course Fee" + batch to keep it within descW
+    const feeDesc = `Course Fee – C/C++ Algorithms`;
+    const feeAmt = `Rs ${input.amountPkr.toLocaleString("en-PK")}`;
+    doc.fillColor("#333").font("Helvetica").fontSize(9.5)
+      .text(feeDesc, rightX, feeItemY + 0.5, { width: descW, lineBreak: false, ellipsis: true });
+    doc.fillColor("#1e3c72").font("Helvetica-Bold").fontSize(10)
+      .text(feeAmt, rightX + descW + 8, feeItemY, { width: amtW, align: "right", lineBreak: false });
+
+    // Dotted separator
+    const sepY = feeItemY + 15;
+    doc.moveTo(rightX, sepY).lineTo(rightX + rightColW, sepY)
+      .lineWidth(0.5).dash(2, { space: 3 }).strokeColor("#ccc").stroke();
+    doc.undash();
+
+    // Total Amount Due row – solid top border in #1e3c72
+    const totalY = sepY + 5;
+    doc.moveTo(rightX, totalY).lineTo(rightX + rightColW, totalY)
+      .lineWidth(2).strokeColor("#1e3c72").stroke();
+    doc.fillColor("#1e3c72").font("Helvetica-Bold").fontSize(11)
+      .text("Total Amount Due", rightX, totalY + 4, { width: descW, lineBreak: false });
+    doc.fillColor("#1e3c72").font("Helvetica-Bold").fontSize(11)
+      .text(`Rs ${input.amountPkr.toLocaleString("en-PK")} /-`,
+        rightX + descW + 8, totalY + 4, { width: amtW, align: "right", lineBreak: false });
+
+    // ── FOOTER – placed just below the taller of the two columns ─────────────
+    // bodyY=80, 5 rows × 17 = 85 → last row bottom = 80+20+4×17 = 168
+    // totalY ≈ 80+20+15+5 = 120  → totalY+4+14 = 138
+    // footerY safely = max of both + padding, capped well below page bottom
+    const leftColBottom = bodyY + 20 + (rows.length - 1) * rowH + 14;
+    const rightColBottom = totalY + 18;
+    const footerY = Math.max(leftColBottom, rightColBottom) + 20;
+
+    doc.rect(0, footerY, W, 20).fill("#f8f9fa");
+    doc.moveTo(0, footerY).lineTo(W, footerY)
+      .lineWidth(0.5).strokeColor("#ddd").stroke();
+    doc.fillColor("#666").font("Helvetica").fontSize(8)
+      .text(
+        "Thank you for your enrollment with UPRISER: INSTITUTE OF TECHNOLOGY  |  For inquiries: admin@iiecs.edu",
+        0, footerY + 6, { width: W, align: "center", lineBreak: false }
+      );
+
+    doc.end();
+  });
 }
 
 async function sendInvoiceEmail(input: {
