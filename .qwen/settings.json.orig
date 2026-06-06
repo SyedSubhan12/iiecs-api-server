@@ -3,6 +3,5 @@
     "allow": [
       "Bash(pnpm exec *)"
     ]
-  },
-  "$version": 4
+  }
 }

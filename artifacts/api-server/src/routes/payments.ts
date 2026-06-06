@@ -1,6 +1,32 @@
 import { Router } from "express";
-import { db, paymentsTable, studentsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { db, paymentsTable, studentsTable, invoicesTable } from "@workspace/db";
+import { eq, and, sql } from "drizzle-orm";
+
+const ADMIN_EMAILS = ["admin@iiecs.edu", "teacher@iiecs.edu"];
+
+async function getAuthContext(req: {
+  headers: Record<string, unknown>;
+}): Promise<{ role: "admin" | "student"; email: string; studentId: string | null } | null> {
+  const raw = req.headers["x-user-email"];
+  const email = typeof raw === "string" ? raw.toLowerCase().trim() : null;
+  if (!email) return null;
+
+  if (ADMIN_EMAILS.includes(email)) {
+    return { role: "admin", email, studentId: null };
+  }
+
+  const [student] = await db
+    .select()
+    .from(studentsTable)
+    .where(eq(studentsTable.email, email))
+    .limit(1);
+
+  if (student) {
+    return { role: "student", email, studentId: student.id };
+  }
+
+  return null;
+}
 
 const router = Router();
 const FIXED_STUDENT_FEE_PKR = 2000;
@@ -169,9 +195,59 @@ router.delete("/payments/:id", async (req, res) => {
 });
 
 // Delete ALL payments (admin danger zone)
-router.delete("/payments", async (_req, res) => {
-  const result = await db.delete(paymentsTable).returning({ id: paymentsTable.id });
-  res.json({ deleted: result.length });
+router.delete("/payments", async (req, res) => {
+  try {
+    const auth = await getAuthContext(req);
+    if (!auth) {
+      res.status(401).json({ error: "Not authenticated" });
+      return;
+    }
+
+    if (auth.role !== "admin") {
+      res.status(403).json({ error: "Unauthorized - Admin access required" });
+      return;
+    }
+
+    // Delete all payments
+    const paymentResult = await db.delete(paymentsTable).returning({ id: paymentsTable.id });
+    
+    // Also delete all invoices that reference the deleted payments
+    const invoiceResult = await db.delete(invoicesTable).where(
+      sql`${invoicesTable.paymentId} = ANY(${sql`${paymentResult.map(p => p.id).join(', ')}`})`
+    ).returning({ id: invoicesTable.id });
+
+    res.json({ 
+      deletedPayments: paymentResult.length, 
+      deletedInvoices: invoiceResult.length,
+      totalDeleted: paymentResult.length + invoiceResult.length 
+    });
+  } catch (error) {
+    console.error("Error deleting all payments and invoices:", error);
+    res.status(500).json({ error: "Failed to delete payments and invoices" });
+  }
+});
+// Delete all invoices (admin only)
+router.delete("/invoices", async (req, res) => {
+  try {
+    const auth = await getAuthContext(req);
+    if (!auth || auth.role !== "admin") {
+      res.status(403).json({ error: "Admin access required" });
+      return;
+    }
+
+    const deleted = await db
+      .delete(invoicesTable)
+      .returning({ id: invoicesTable.id });
+
+    console.warn(
+      `[SECURITY] Admin ${auth.email} deleted ${deleted.length} invoices`,
+    );
+
+    res.json({ deletedInvoices: deleted.length });
+  } catch (error) {
+    console.error("Bulk invoice deletion failed:", error);
+    res.status(500).json({ error: "Failed to delete invoices" });
+  }
 });
 
 export default router;

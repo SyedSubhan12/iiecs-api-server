@@ -3,6 +3,32 @@ import { db, attendanceTable, studentsTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { readFileSync } from "node:fs";
 
+const ADMIN_EMAILS = ["admin@iiecs.edu", "teacher@iiecs.edu"];
+
+async function getAuthContext(req: {
+  headers: Record<string, unknown>;
+}): Promise<{ role: "admin" | "student"; email: string; studentId: string | null } | null> {
+  const raw = req.headers["x-user-email"];
+  const email = typeof raw === "string" ? raw.toLowerCase().trim() : null;
+  if (!email) return null;
+
+  if (ADMIN_EMAILS.includes(email)) {
+    return { role: "admin", email, studentId: null };
+  }
+
+  const [student] = await db
+    .select()
+    .from(studentsTable)
+    .where(eq(studentsTable.email, email))
+    .limit(1);
+
+  if (student) {
+    return { role: "student", email, studentId: student.id };
+  }
+
+  return null;
+}
+
 const router = Router();
 
 // #region debug-point A:config
@@ -445,9 +471,25 @@ router.get("/attendance/today", async (req, res) => {
 });
 
 // Delete ALL attendance records (admin danger zone)
-router.delete("/attendance", async (_req, res) => {
-  const result = await db.delete(attendanceTable).returning({ id: attendanceTable.id });
-  res.json({ deleted: result.length });
+router.delete("/attendance", async (req, res) => {
+  try {
+    const auth = await getAuthContext(req);
+    if (!auth) {
+      res.status(401).json({ error: "Not authenticated" });
+      return;
+    }
+
+    if (auth.role !== "admin") {
+      res.status(403).json({ error: "Unauthorized - Admin access required" });
+      return;
+    }
+
+    const result = await db.delete(attendanceTable).returning({ id: attendanceTable.id });
+    res.json({ deleted: result.length });
+  } catch (error) {
+    console.error("Error deleting all attendance records:", error);
+    res.status(500).json({ error: "Failed to delete attendance records" });
+  }
 });
 
 export default router;
