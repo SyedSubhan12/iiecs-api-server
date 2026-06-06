@@ -353,7 +353,7 @@ router.post("/invoices", async (req, res) => {
       pdfFileName,
       pdfBuffer,
     }).catch((err) => {
-      req.log?.warn({ err }, "Failed to send invoice email");
+      (req as Record<string, any>)["log"]?.warn({ err }, "Failed to send invoice email");
     });
   }
 
