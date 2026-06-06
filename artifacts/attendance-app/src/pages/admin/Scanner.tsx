@@ -67,6 +67,44 @@ export default function ScannerPage() {
 
     try {
       const { Html5Qrcode } = await import("html5-qrcode");
+      // Retrieve available cameras and pick the back/environment one if possible
+      const cameras = await Html5Qrcode.getCameras();
+      if (!cameras || cameras.length === 0) {
+        throw new Error("No cameras found on this device.");
+      }
+      const cameraId = cameras.find((c) => c.label?.toLowerCase().includes("back"))?.id || cameras[0].id;
+
+      if (scannerRef.current) {
+        const qrScanner = new Html5Qrcode("qr-reader");
+        scannerInstance.current = qrScanner;
+        await qrScanner.start(
+          cameraId,
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          (decodedText: string) => {
+            qrScanner.stop().catch(() => {});
+            scannerInstance.current = null;
+            setIsScanning(false);
+            handleScan(decodedText);
+          },
+          (errorMessage) => {
+            // Optional: log decoding errors silently
+            console.debug("QR decode error:", errorMessage);
+          },
+        );
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Camera not available. Use manual entry below.";
+      setScanError(msg);
+      setIsScanning(false);
+    }
+  }
+    setScanResult(null);
+    setScanError("");
+    setSuccessMsg("");
+    setIsScanning(true);
+
+    try {
+      const { Html5Qrcode } = await import("html5-qrcode");
       if (scannerRef.current) {
         const qrScanner = new Html5Qrcode("qr-reader");
         scannerInstance.current = qrScanner;
