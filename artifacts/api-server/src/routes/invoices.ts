@@ -341,6 +341,91 @@ async function uploadInvoicePdfAndSave(params: {
   return updated?.pdfUrl ?? pdfUrl;
 }
 
+function buildInvoiceCardPageBuffer(invoices: Array<{
+  invoiceNumber: string;
+  issuedDate: Date;
+  dueDate: string | null;
+  status: string;
+  amountPkr: number;
+  student: { fullName: string; idNumber: string; batch: string; email: string };
+}>) {
+  return new Promise<Buffer>((resolve, reject) => {
+    const doc = new PDFDocument({ size: "A4", margin: 18, autoFirstPage: true });
+    const chunks: Buffer[] = [];
+    doc.on("data", (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+
+    const pageW = doc.page.width;
+    const pageH = doc.page.height;
+    const cardGap = 10;
+    const topMargin = 18;
+    const bottomMargin = 18;
+    const leftMargin = 18;
+    const cardHeight = Math.floor((pageH - topMargin - bottomMargin - cardGap * 2) / 3);
+    const cardWidth = pageW - leftMargin * 2;
+
+    function drawCard(invoice: (typeof invoices)[number], indexOnPage: number) {
+      const y = topMargin + indexOnPage * (cardHeight + cardGap);
+      const cardX = leftMargin;
+      const cardY = y;
+      const innerPad = 14;
+      const headerH = 36;
+
+      doc.roundedRect(cardX, cardY, cardWidth, cardHeight, 10).fillAndStroke("#ffffff", "#d7deea");
+      doc.roundedRect(cardX, cardY, cardWidth, headerH, 10).fill("#1e3c72");
+      doc.rect(cardX, cardY + headerH - 10, cardWidth, 10).fill("#1e3c72");
+
+      doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(12)
+        .text("UPRISER: INSTITUTE OF TECHNOLOGY", cardX + innerPad, cardY + 10, { width: cardWidth - innerPad * 2, lineBreak: false });
+      doc.fillColor("#a8bfe0").font("Helvetica").fontSize(8)
+        .text("Monthly Fee Invoice", cardX + innerPad, cardY + 23, { width: cardWidth - innerPad * 2, lineBreak: false });
+
+      const leftX = cardX + innerPad;
+      const rightX = cardX + cardWidth - innerPad - 170;
+      const bodyTop = cardY + headerH + 12;
+      const labelStyle = { width: 52, lineBreak: false } as const;
+      const valueW = 162;
+
+      const row = (label: string, value: string, rowIndex: number, bold = false) => {
+        const yy = bodyTop + rowIndex * 18;
+        doc.fillColor("#4a4f58").font("Helvetica-Bold").fontSize(9).text(label, leftX, yy, labelStyle);
+        doc.fillColor("#111827").font(bold ? "Helvetica-Bold" : "Helvetica").fontSize(label === "Email:" ? 7.5 : 9)
+          .text(value, leftX + 56, yy, { width: valueW, lineBreak: false, ellipsis: true });
+      };
+
+      row("Name:", invoice.student.fullName, 0, true);
+      row("ID:", invoice.student.idNumber, 1);
+      row("Batch:", invoice.student.batch, 2);
+      row("Email:", invoice.student.email, 3);
+      row("Status:", invoice.status, 4);
+
+      doc.fillColor("#1e3c72").font("Helvetica-Bold").fontSize(10)
+        .text(`Invoice # ${invoice.invoiceNumber}`, rightX, bodyTop, { width: 160, align: "right", lineBreak: false });
+      doc.fillColor("#4a4f58").font("Helvetica").fontSize(8)
+        .text(`Issued: ${format(invoice.issuedDate, "yyyy-MM-dd")}`, rightX, bodyTop + 18, { width: 160, align: "right", lineBreak: false });
+      doc.fillColor("#4a4f58").font("Helvetica").fontSize(8)
+        .text(`Due: ${invoice.dueDate ?? "Upon receipt"}`, rightX, bodyTop + 32, { width: 160, align: "right", lineBreak: false });
+
+      const amountBoxY = cardY + cardHeight - innerPad - 46;
+      doc.roundedRect(rightX, amountBoxY, 160, 40, 8).fill("#f4f7fb").stroke("#d7deea");
+      doc.fillColor("#6b7280").font("Helvetica").fontSize(8)
+        .text("Amount Due", rightX + 12, amountBoxY + 7, { width: 136, align: "right", lineBreak: false });
+      doc.fillColor("#1e3c72").font("Helvetica-Bold").fontSize(15)
+        .text(`Rs ${invoice.amountPkr.toLocaleString("en-PK")}`, rightX + 12, amountBoxY + 20, { width: 136, align: "right", lineBreak: false });
+    }
+
+    for (let i = 0; i < invoices.length; i++) {
+      if (i > 0 && i % 3 === 0) {
+        doc.addPage();
+      }
+      drawCard(invoices[i], i % 3);
+    }
+
+    doc.end();
+  });
+}
+
 // Send all invoices to their respective student emails (with portal access link)
 router.post("/invoices/send-all", async (req, res) => {
   const rows = await db
@@ -684,6 +769,63 @@ router.post("/invoices/preview-monthly", async (req, res) => {
     totalSkipped,
     toCreate,
   });
+});
+
+router.get("/invoices/monthly-batch.pdf", async (req, res) => {
+  const auth = await getAuthContext(req);
+  if (!auth || auth.role !== "admin") {
+    res.status(403).json({ error: "Admin access required" });
+    return;
+  }
+
+  const month =
+    typeof req.query.month === "string" && req.query.month.trim()
+      ? req.query.month.trim()
+      : format(new Date(), "yyyy-MM");
+  const prefix = `INV-${month.replace("-", "")}`;
+
+  const rows = await db
+    .select({
+      id: invoicesTable.id,
+      invoiceNumber: invoicesTable.invoiceNumber,
+      amount: invoicesTable.amount,
+      issuedDate: invoicesTable.issuedDate,
+      dueDate: invoicesTable.dueDate,
+      status: invoicesTable.status,
+      studentName: studentsTable.fullName,
+      studentEmail: studentsTable.email,
+      studentIdNumber: studentsTable.idNumber,
+      studentBatch: studentsTable.batch,
+    })
+    .from(invoicesTable)
+    .innerJoin(studentsTable, eq(invoicesTable.studentId, studentsTable.id))
+    .where(like(invoicesTable.invoiceNumber, `${prefix}%`))
+    .orderBy(invoicesTable.invoiceNumber);
+
+  if (rows.length === 0) {
+    res.status(404).json({ error: "No invoices found for the selected month" });
+    return;
+  }
+
+  const pdfBuffer = await buildInvoiceCardPageBuffer(
+    rows.map((row) => ({
+      invoiceNumber: row.invoiceNumber,
+      issuedDate: row.issuedDate,
+      dueDate: row.dueDate ?? null,
+      status: row.status,
+      amountPkr: Number.parseFloat(row.amount) || FIXED_STUDENT_FEE_PKR,
+      student: {
+        fullName: row.studentName,
+        idNumber: row.studentIdNumber,
+        batch: row.studentBatch,
+        email: row.studentEmail,
+      },
+    })),
+  );
+
+  res.setHeader("content-type", "application/pdf");
+  res.setHeader("content-disposition", `attachment; filename="Monthly-Invoices-${month}.pdf"`);
+  res.send(pdfBuffer);
 });
 
 router.get("/invoices/:id/pdf", async (req, res) => {

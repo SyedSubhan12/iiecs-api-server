@@ -13,6 +13,7 @@ import {
 import type { PreviewMonthlyResult } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AdminLayout } from "@/components/AdminLayout";
+import { useAuth } from "@/contexts/AuthContext";
 
 const API_BASE = "/api";
 
@@ -76,6 +77,7 @@ function InvoicePdfModal({ invoiceId, invoiceNumber, onClose }: { invoiceId: str
 }
 
 export default function PaymentsPage() {
+  const { user } = useAuth();
   const [statusFilter, setStatusFilter] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
@@ -159,6 +161,39 @@ export default function PaymentsPage() {
   function handleGenerateInvoices() {
     setGenerateResult(null);
     generateMutation.mutate({ data: { month: invoiceMonth } });
+  }
+
+  async function handleDownloadMonthlyBatch() {
+    if (!user?.email) {
+      alert("Admin email is missing from the current session.");
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/invoices/monthly-batch.pdf?month=${encodeURIComponent(invoiceMonth)}`,
+        {
+          headers: { "x-user-email": user.email },
+        },
+      );
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || `Failed with status ${res.status}`);
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Monthly-Invoices-${invoiceMonth}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to download monthly batch PDF");
+    }
   }
 
   async function handleSendAllInvoices() {
@@ -286,6 +321,12 @@ export default function PaymentsPage() {
           className="px-4 py-2 bg-secondary text-secondary-foreground text-sm font-medium rounded-md border border-border hover:opacity-90 transition-opacity"
         >
           📄 Generate Monthly Invoices
+        </button>
+        <button
+          onClick={handleDownloadMonthlyBatch}
+          className="px-4 py-2 bg-muted text-muted-foreground text-sm font-medium rounded-md border border-border hover:text-foreground transition-opacity"
+        >
+          🗂 Download 3-Up PDF
         </button>
         <button
           onClick={() => setShowForm(true)}
@@ -438,8 +479,15 @@ export default function PaymentsPage() {
                 <div className="flex justify-end">
                   <button
                     type="button"
+                    onClick={handleDownloadMonthlyBatch}
+                    className="px-4 py-2 bg-secondary text-secondary-foreground text-sm font-semibold rounded-md border border-border hover:opacity-90 transition-opacity"
+                  >
+                    Download 3-Up PDF
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => { setShowInvoiceModal(false); setGenerateResult(null); }}
-                    className="px-4 py-2 bg-primary text-primary-foreground text-sm font-semibold rounded-md hover:opacity-90 transition-opacity"
+                    className="ml-3 px-4 py-2 bg-primary text-primary-foreground text-sm font-semibold rounded-md hover:opacity-90 transition-opacity"
                   >
                     Close
                   </button>
