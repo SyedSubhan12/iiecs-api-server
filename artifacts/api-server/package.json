@@ -19,11 +19,14 @@
     "drizzle-orm": "catalog:",
     "ejs": "^6.0.1",
     "express": "^5.2.1",
+    "nodemailer": "^8.0.10",
     "pdfkit": "^0.17.2",
     "pino": "^9.14.0",
     "pino-http": "^10.5.0",
     "puppeteer": "^25.1.0",
-    "puppeteer-core": "^25.1.0"
+    "puppeteer-core": "^25.1.0",
+    "sib-api-v3-sdk": "^8.5.0",
+    "@supabase/supabase-js": "^2.107.0"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",
@@ -31,6 +34,7 @@
     "@types/ejs": "^3.1.5",
     "@types/express": "^5.0.6",
     "@types/node": "catalog:",
+    "@types/nodemailer": "^8.0.0",
     "@types/pdfkit": "^0.13.9",
     "esbuild": "0.27.3",
     "esbuild-plugin-pino": "^2.3.3",

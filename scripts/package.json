@@ -6,6 +6,7 @@
   "scripts": {
     "hello": "tsx ./src/hello.ts",
     "seed": "tsx ./src/seed.ts",
+    "process:id-cards": "tsx ./src/process_id_cards.ts",
     "clear:data": "tsx ./src/clear_attendance.ts --all",
     "audit:data": "tsx ./src/clear_attendance.ts --audit",
     "typecheck": "tsc -p tsconfig.json --noEmit"

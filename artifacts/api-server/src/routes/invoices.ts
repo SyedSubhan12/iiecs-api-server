@@ -7,6 +7,8 @@ import ejs from "ejs";
 import path from "path";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
+import SibApiV3Sdk from "sib-api-v3-sdk";
+import { uploadPdfToSupabase } from "../lib/supabase-storage.js";
 
 // Resolve __dirname for ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -224,45 +226,190 @@ export async function buildInvoicePdfBuffer(input: {
   });
 }
 
+const PORTAL_URL = "https://iiecs-api-server-attendance-app.vercel.app/";
+
 async function sendInvoiceEmail(input: {
   toEmail: string;
   toName: string;
   invoiceNumber: string;
   pdfFileName: string;
   pdfBuffer: Buffer;
+  portalUrl?: string;
 }) {
   const apiKey = process.env.BREVO_API_KEY;
-  if (!apiKey) return;
+  if (!apiKey) {
+    console.error("BREVO_API_KEY is not configured");
+    return;
+  }
+
+  // Initialize Brevo API client
+  const defaultClient = SibApiV3Sdk.ApiClient.instance;
+  const apiKeyAuth = defaultClient.authentications["api-key"];
+  apiKeyAuth.apiKey = apiKey;
+
+  const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
 
   const senderEmail = process.env.BREVO_SENDER_EMAIL ?? "noreply@iiecs.edu";
   const senderName = process.env.BREVO_SENDER_NAME ?? "IIECS Admin";
 
-  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
-    method: "POST",
-    headers: {
-      "api-key": apiKey,
-      "content-type": "application/json",
-      accept: "application/json",
-    },
-    body: JSON.stringify({
-      sender: { email: senderEmail, name: senderName },
-      to: [{ email: input.toEmail, name: input.toName }],
-      subject: `Fee Invoice ${input.invoiceNumber}`,
-      htmlContent: `<p>Dear ${input.toName},</p><p>Please find attached your fee invoice <strong>${input.invoiceNumber}</strong>.</p><p>Regards,<br/>${senderName}</p>`,
-      attachment: [
-        {
-          name: input.pdfFileName,
-          content: input.pdfBuffer.toString("base64"),
-        },
-      ],
-    }),
-  });
+  // Log environment info for debugging IP changes
+  console.log(`[InvoiceEmail] Environment: ${process.env.NODE_ENV || 'unknown'}`);
+  console.log(`[InvoiceEmail] Sender: ${senderEmail}`);
+  console.log(`[InvoiceEmail] Target: ${input.toEmail}`);
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Brevo SMTP API error (${res.status}): ${text}`);
+  const portalSection = input.portalUrl
+    ? `<p style="margin-top:16px;padding:14px 18px;background:#f0f4ff;border-left:4px solid #1e3c72;border-radius:4px;">
+        <strong>🎓 Student Portal Access</strong><br/>
+        You can access your student portal, view attendance records, download invoices, and manage your profile at:<br/>
+        <a href="${input.portalUrl}" style="color:#1e3c72;font-weight:600;">${input.portalUrl}</a>
+       </p>`
+    : "";
+
+  const htmlContent = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333;">
+      <div style="background:#1e3c72;padding:20px 24px;border-radius:8px 8px 0 0;">
+        <h2 style="color:#fff;margin:0;font-size:18px;">UPRISER: INSTITUTE OF TECHNOLOGY</h2>
+        <p style="color:#a8bfe0;margin:4px 0 0;font-size:12px;">Education and Beyond...</p>
+      </div>
+      <div style="padding:24px;border:1px solid #dde3f0;border-top:none;border-radius:0 0 8px 8px;">
+        <p>Dear <strong>${input.toName}</strong>,</p>
+        <p>Please find attached your fee invoice <strong>${input.invoiceNumber}</strong> for your records.</p>
+        ${portalSection}
+        <p style="margin-top:20px;font-size:13px;color:#666;">
+          For any queries, please contact us at <a href="mailto:admin@iiecs.edu" style="color:#1e3c72;">admin@iiecs.edu</a>.
+        </p>
+        <p style="margin-top:4px;font-size:13px;">Regards,<br/><strong>${senderName}</strong></p>
+      </div>
+      <p style="font-size:11px;color:#aaa;text-align:center;margin-top:12px;">
+        UPRISER: INSTITUTE OF TECHNOLOGY &nbsp;|&nbsp; admin@iiecs.edu
+      </p>
+    </div>`;
+
+  const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+  sendSmtpEmail.subject = `Fee Invoice ${input.invoiceNumber} – UPRISER Institute`;
+  sendSmtpEmail.htmlContent = htmlContent;
+  sendSmtpEmail.sender = { email: senderEmail, name: senderName };
+  sendSmtpEmail.to = [{ email: input.toEmail, name: input.toName }];
+  
+  // Add attachment
+  if (input.pdfBuffer) {
+    sendSmtpEmail.attachment = [
+      {
+        name: input.pdfFileName,
+        content: input.pdfBuffer.toString("base64"),
+      },
+    ];
+  }
+
+  try {
+    console.log(`[InvoiceEmail] Attempting to send invoice ${input.invoiceNumber} to ${input.toEmail}`);
+    const data = await apiInstance.sendTransacEmail(sendSmtpEmail);
+    console.log(`[InvoiceEmail] Successfully sent invoice ${input.invoiceNumber}, Message ID: ${data.messageId}`);
+    return data;
+  } catch (error: any) {
+    console.error(`[InvoiceEmail] Failed to send invoice ${input.invoiceNumber} to ${input.toEmail}:`);
+    if (error.response && error.response.body) {
+      console.error("Brevo API Error:", error.response.body);
+      // Handle specific IP-related errors
+      if (error.response.body.message && error.response.body.message.includes('IP')) {
+        console.error("IP address related error detected. This may be due to Vercel's dynamic IP routing.");
+      }
+    } else if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      console.error("Network connection error - this could be related to IP routing issues.");
+    }
+    throw new Error(`Brevo SMTP API error: ${error.message || "Unknown error"}`);
   }
 }
+
+async function uploadInvoicePdfAndSave(params: {
+  invoiceId: string;
+  invoiceNumber: string;
+  pdfBuffer: Buffer;
+}) {
+  const pdfUrl = await uploadPdfToSupabase({
+    bucketName: "invoices",
+    objectPath: `invoices/${params.invoiceNumber}.pdf`,
+    buffer: params.pdfBuffer,
+  });
+
+  const [updated] = await db
+    .update(invoicesTable)
+    .set({ pdfUrl })
+    .where(eq(invoicesTable.id, params.invoiceId))
+    .returning({ id: invoicesTable.id, pdfUrl: invoicesTable.pdfUrl });
+
+  return updated?.pdfUrl ?? pdfUrl;
+}
+
+// Send all invoices to their respective student emails (with portal access link)
+router.post("/invoices/send-all", async (req, res) => {
+  const rows = await db
+    .select({
+      id: invoicesTable.id,
+      studentId: invoicesTable.studentId,
+      invoiceNumber: invoicesTable.invoiceNumber,
+      amount: invoicesTable.amount,
+      issuedDate: invoicesTable.issuedDate,
+      dueDate: invoicesTable.dueDate,
+      status: invoicesTable.status,
+      pdfUrl: invoicesTable.pdfUrl,
+      studentName: studentsTable.fullName,
+      studentEmail: studentsTable.email,
+      studentIdNumber: studentsTable.idNumber,
+      studentBatch: studentsTable.batch,
+    })
+    .from(invoicesTable)
+    .innerJoin(studentsTable, eq(invoicesTable.studentId, studentsTable.id));
+
+  let sent = 0;
+  const failed: { invoiceNumber: string; email: string; error: string }[] = [];
+
+  await Promise.allSettled(
+    rows.map(async (row) => {
+      if (!row.studentEmail) {
+        failed.push({ invoiceNumber: row.invoiceNumber, email: "(none)", error: "No email on record" });
+        return;
+      }
+      try {
+        const amountPkr = parseFloat(row.amount);
+        const pdfBuffer = await buildInvoicePdfBuffer({
+          invoiceNumber: row.invoiceNumber,
+          issuedDate: row.issuedDate,
+          dueDate: row.dueDate ?? null,
+          status: row.status,
+          amountPkr: Number.isFinite(amountPkr) ? amountPkr : FIXED_STUDENT_FEE_PKR,
+          student: {
+            fullName: row.studentName,
+            idNumber: row.studentIdNumber,
+            batch: row.studentBatch,
+            email: row.studentEmail,
+          },
+        });
+
+        await uploadInvoicePdfAndSave({
+          invoiceId: row.id,
+          invoiceNumber: row.invoiceNumber,
+          pdfBuffer,
+        });
+
+        await sendInvoiceEmail({
+          toEmail: row.studentEmail,
+          toName: row.studentName,
+          invoiceNumber: row.invoiceNumber,
+          pdfFileName: `${row.invoiceNumber}.pdf`,
+          pdfBuffer,
+          portalUrl: PORTAL_URL,
+        });
+        sent++;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        failed.push({ invoiceNumber: row.invoiceNumber, email: row.studentEmail, error: message });
+      }
+    }),
+  );
+
+  res.json({ sent, failed: failed.length, total: rows.length, details: failed });
+});
 
 // List invoices
 router.get("/invoices", async (req, res) => {
@@ -282,6 +429,7 @@ router.get("/invoices", async (req, res) => {
       issuedDate: invoicesTable.issuedDate,
       dueDate: invoicesTable.dueDate,
       status: invoicesTable.status,
+      pdfUrl: invoicesTable.pdfUrl,
       createdAt: invoicesTable.createdAt,
     })
     .from(invoicesTable)
@@ -330,6 +478,7 @@ router.post("/invoices", async (req, res) => {
     .where(eq(studentsTable.id, body.studentId))
     .limit(1);
 
+  let pdfUrl: string | null = invoice.pdfUrl ?? null;
   if (student?.email) {
     const pdfFileName = `${invoiceNumber}.pdf`;
     const pdfBuffer = await buildInvoicePdfBuffer({
@@ -344,6 +493,12 @@ router.post("/invoices", async (req, res) => {
         batch: student.batch,
         email: student.email,
       },
+      });
+
+    pdfUrl = await uploadInvoicePdfAndSave({
+      invoiceId: invoice.id,
+      invoiceNumber,
+      pdfBuffer,
     });
 
     sendInvoiceEmail({
@@ -361,6 +516,7 @@ router.post("/invoices", async (req, res) => {
     ...invoice,
     studentName: student?.fullName ?? null,
     amount: parseFloat(invoice.amount),
+    pdfUrl,
     issuedDate: invoice.issuedDate.toISOString(),
     createdAt: invoice.createdAt.toISOString(),
   });
@@ -419,6 +575,7 @@ router.post("/invoices/generate-monthly", async (req, res) => {
       ...invoice,
       studentName: student.fullName,
       amount: FIXED_STUDENT_FEE_PKR,
+      pdfUrl: invoice.pdfUrl ?? null,
       issuedDate: invoice.issuedDate.toISOString(),
       createdAt: invoice.createdAt.toISOString(),
     });
@@ -446,6 +603,12 @@ router.post("/invoices/generate-monthly", async (req, res) => {
           batch: student.batch,
           email: student.email,
         },
+      });
+
+      inv.pdfUrl = await uploadInvoicePdfAndSave({
+        invoiceId: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        pdfBuffer,
       });
 
       await sendInvoiceEmail({
@@ -536,6 +699,7 @@ router.get("/invoices/:id/pdf", async (req, res) => {
       issuedDate: invoicesTable.issuedDate,
       dueDate: invoicesTable.dueDate,
       status: invoicesTable.status,
+      pdfUrl: invoicesTable.pdfUrl,
       studentName: studentsTable.fullName,
       studentEmail: studentsTable.email,
       studentIdNumber: studentsTable.idNumber,
@@ -571,6 +735,14 @@ router.get("/invoices/:id/pdf", async (req, res) => {
     },
   });
 
+  if (!row.pdfUrl) {
+    await uploadInvoicePdfAndSave({
+      invoiceId: row.id,
+      invoiceNumber: row.invoiceNumber,
+      pdfBuffer,
+    });
+  }
+
   res.setHeader("content-type", "application/pdf");
   res.setHeader("content-disposition", `attachment; filename="${row.invoiceNumber}.pdf"`);
   res.send(pdfBuffer);
@@ -589,6 +761,7 @@ router.get("/invoices/:id", async (req, res) => {
       issuedDate: invoicesTable.issuedDate,
       dueDate: invoicesTable.dueDate,
       status: invoicesTable.status,
+      pdfUrl: invoicesTable.pdfUrl,
       createdAt: invoicesTable.createdAt,
     })
     .from(invoicesTable)

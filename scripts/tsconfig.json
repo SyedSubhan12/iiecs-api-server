@@ -3,7 +3,13 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src",
-    "types": ["node"]
+    "types": ["node"],
+    "typeRoots": [
+      "./node_modules/@types",
+      "./src/@types",
+      "../artifacts/api-server/src/@types",
+      "./node_modules"
+    ]
   },
   "include": ["src"],
   "references": [

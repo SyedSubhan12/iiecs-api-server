@@ -59,6 +59,13 @@ export default function StudentDownloads() {
 
   function handleDownloadInvoice(inv: { id: string; invoiceNumber: string }) {
     if (!user?.email) return;
+    const pdfUrl = (inv as { pdfUrl?: string | null }).pdfUrl;
+
+    if (pdfUrl) {
+      window.open(pdfUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+
     downloadFile(`/api/invoices/${inv.id}/pdf`, `Invoice-${inv.invoiceNumber}.pdf`, user.email).catch(() => {});
   }
 
@@ -125,6 +132,16 @@ export default function StudentDownloads() {
                   }`}>
                     {inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}
                   </span>
+                  {(inv as { pdfUrl?: string | null }).pdfUrl && (
+                    <a
+                      href={(inv as { pdfUrl?: string | null }).pdfUrl ?? "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary hover:underline font-semibold"
+                    >
+                      Supabase PDF
+                    </a>
+                  )}
                   <button
                     onClick={() => handleDownloadInvoice(inv)}
                     className="px-3 py-1.5 bg-secondary text-secondary-foreground text-xs font-medium rounded-md hover:opacity-90 transition-opacity border border-border"

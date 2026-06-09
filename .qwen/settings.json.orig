@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(pnpm exec *)"
+      "Bash(pnpm exec *)",
+      "Read(//home/zaro/**)",
+      "Bash(pnpm install)",
+      "Bash(curl *)",
+      "Bash(pnpm run *)"
     ]
-  }
+  },
+  "$version": 4
 }

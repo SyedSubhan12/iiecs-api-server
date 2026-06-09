@@ -89,6 +89,9 @@ export default function PaymentsPage() {
   const [form, setForm] = useState({ studentId: "", amount: "2000", description: "Course Fee - IIECS-101", dueDate: "" });
   const [clearConfirm, setClearConfirm] = useState<"attendance" | "payments" | null>(null);
   const [clearStatus, setClearStatus] = useState<string | null>(null);
+  const [sendingAll, setSendingAll] = useState(false);
+  const [sendAllResult, setSendAllResult] = useState<{ sent: number; failed: number; total: number } | null>(null);
+  const [sendAllError, setSendAllError] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const previewMutation = usePreviewMonthlyInvoices({
@@ -156,6 +159,22 @@ export default function PaymentsPage() {
   function handleGenerateInvoices() {
     setGenerateResult(null);
     generateMutation.mutate({ data: { month: invoiceMonth } });
+  }
+
+  async function handleSendAllInvoices() {
+    setSendingAll(true);
+    setSendAllResult(null);
+    setSendAllError(null);
+    try {
+      const res = await fetch(`${API_BASE}/invoices/send-all`, { method: "POST" });
+      if (!res.ok) throw new Error(`Server error: ${res.status}`);
+      const data = await res.json() as { sent: number; failed: number; total: number };
+      setSendAllResult(data);
+    } catch (e) {
+      setSendAllError(e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setSendingAll(false);
+    }
   }
 
   async function handleClearAll(type: "attendance" | "payments") {
@@ -245,6 +264,24 @@ export default function PaymentsPage() {
         </select>
         <div className="flex-1" />
         <button
+          id="send-all-invoices-btn"
+          onClick={handleSendAllInvoices}
+          disabled={sendingAll}
+          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-sm font-medium rounded-md border border-indigo-500/50 transition-all duration-200 flex items-center gap-2 shadow-sm"
+        >
+          {sendingAll ? (
+            <>
+              <svg className="animate-spin h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              Sending…
+            </>
+          ) : (
+            <>✉️ Send All Invoices</>
+          )}
+        </button>
+        <button
           onClick={() => setShowInvoiceModal(true)}
           className="px-4 py-2 bg-secondary text-secondary-foreground text-sm font-medium rounded-md border border-border hover:opacity-90 transition-opacity"
         >
@@ -257,6 +294,37 @@ export default function PaymentsPage() {
           Create Payment
         </button>
       </div>
+
+      {/* Send-All Result Banner */}
+      {sendAllResult && (
+        <div className={`mb-4 flex items-start gap-3 px-4 py-3 rounded-lg border text-sm ${
+          sendAllResult.failed === 0
+            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+            : "bg-amber-500/10 border-amber-500/30 text-amber-300"
+        }`}>
+          <span className="text-lg leading-none mt-0.5">{sendAllResult.failed === 0 ? "✅" : "⚠️"}</span>
+          <div>
+            <p className="font-semibold">
+              {sendAllResult.failed === 0
+                ? `All ${sendAllResult.sent} invoice${sendAllResult.sent !== 1 ? "s" : ""} sent successfully!`
+                : `Sent ${sendAllResult.sent} of ${sendAllResult.total} — ${sendAllResult.failed} failed`}
+            </p>
+            <p className="text-xs mt-0.5 opacity-80">
+              Each email includes the invoice PDF and a link to{" "}
+              <a href="https://iiecs-api-server-attendance-app.vercel.app/" target="_blank" rel="noreferrer"
+                className="underline underline-offset-2">the student portal</a>.
+            </p>
+          </div>
+          <button onClick={() => setSendAllResult(null)} className="ml-auto text-current opacity-60 hover:opacity-100 transition-opacity" aria-label="Dismiss">✕</button>
+        </div>
+      )}
+      {sendAllError && (
+        <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-lg border bg-red-500/10 border-red-500/30 text-red-400 text-sm">
+          <span>❌</span>
+          <span>{sendAllError}</span>
+          <button onClick={() => setSendAllError(null)} className="ml-auto opacity-60 hover:opacity-100 transition-opacity" aria-label="Dismiss">✕</button>
+        </div>
+      )}
 
       {/* Generate Invoices Modal */}
       {showInvoiceModal && (

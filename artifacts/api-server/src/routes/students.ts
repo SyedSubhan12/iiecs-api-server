@@ -2,6 +2,8 @@ import { Router } from "express";
 import { db, studentsTable, attendanceTable, paymentsTable } from "@workspace/db";
 import { eq, like, or, and, sql } from "drizzle-orm";
 import PDFDocument from "pdfkit";
+import { processIdCardDirectory } from "../lib/id-card-import.js";
+import { uploadPdfToSupabase } from "../lib/supabase-storage.js";
 
 const router = Router();
 const ADMIN_EMAILS = ["admin@iiecs.edu", "teacher@iiecs.edu"];
@@ -352,9 +354,15 @@ router.get("/students/:id/id-card.pdf", async (req, res) => {
       enrollmentDate: student.enrollmentDate,
     });
 
+    const idCardUrl = await uploadPdfToSupabase({
+      bucketName: "id-cards",
+      objectPath: `students/${student.idNumber}/id-card.pdf`,
+      buffer: pdfBuffer,
+    });
+
     await db
       .update(studentsTable)
-      .set({ idCardPdf: pdfBuffer, idCardPdfFileName: fileName, idCardUrl: null })
+      .set({ idCardPdf: pdfBuffer, idCardPdfFileName: fileName, idCardUrl })
       .where(eq(studentsTable.id, student.id));
   }
 
@@ -411,6 +419,28 @@ router.get("/students/:id/progress", async (req, res) => {
     totalPaid,
     totalPending,
   });
+});
+
+router.post("/students/import-id-cards", async (req, res) => {
+  const auth = await getAuthContext(req);
+  if (!auth) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+
+  if (auth.role !== "admin") {
+    res.status(403).json({ error: "Admin access required" });
+    return;
+  }
+
+  try {
+    const summary = await processIdCardDirectory();
+    res.json(summary);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to import ID cards";
+    console.error("Failed to import ID cards and invoices:", error);
+    res.status(500).json({ error: message });
+  }
 });
 
 export default router;

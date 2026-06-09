@@ -10,6 +10,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AdminLayout } from "@/components/AdminLayout";
+import { useAuth } from "@/contexts/AuthContext";
 
 const API_BASE = "/api";
 
@@ -117,8 +118,20 @@ export default function StudentsPage() {
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{
+    scanned: number;
+    processed: number;
+    createdStudents: number;
+    updatedStudents: number;
+    createdInvoices: number;
+    uploadedIdCards: number;
+    uploadedInvoices: number;
+    skipped: Array<{ fileName: string; reason: string }>;
+  } | null>(null);
   const [form, setForm] = useState({ email: "", fullName: "", idNumber: "", batch: "Batch B - C/C++ Algorithms", phone: "", cnic: "" });
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const { data: students, isLoading } = useListStudents(
     { search: search || undefined },
@@ -140,6 +153,38 @@ export default function StudentsPage() {
     createMutation.mutate({ data: { ...form } });
   }
 
+  async function handleSyncIdCards() {
+    if (!user?.email) return;
+
+    setSyncing(true);
+    setSyncResult(null);
+
+    try {
+      const response = await fetch(`${API_BASE}/students/import-id-cards`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-user-email": user.email,
+        },
+      });
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to sync ID cards");
+      }
+
+      setSyncResult(payload);
+      queryClient.invalidateQueries({ queryKey: getListStudentsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListInvoicesQueryKey() });
+    } catch (error) {
+      setSyncResult(null);
+      const message = error instanceof Error ? error.message : "Failed to sync ID cards";
+      alert(message);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   return (
     <AdminLayout title="Students">
       <div className="flex items-center gap-3 mb-5">
@@ -157,7 +202,31 @@ export default function StudentsPage() {
         >
           Add Student
         </button>
+        <button
+          onClick={handleSyncIdCards}
+          disabled={syncing}
+          className="px-4 py-2 bg-secondary text-secondary-foreground text-sm font-medium rounded-md hover:opacity-90 transition-opacity border border-border disabled:opacity-50"
+        >
+          {syncing ? "Syncing…" : "Sync ID Cards + Invoices"}
+        </button>
       </div>
+
+      {syncResult && (
+        <div className="mb-5 rounded-lg border border-primary/25 bg-primary/5 p-4 text-sm">
+          <div className="font-semibold text-foreground mb-2">Bulk import complete</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+            <div><span className="text-muted-foreground">Processed:</span> {syncResult.processed}</div>
+            <div><span className="text-muted-foreground">Students:</span> +{syncResult.createdStudents} / updated {syncResult.updatedStudents}</div>
+            <div><span className="text-muted-foreground">Invoices:</span> +{syncResult.createdInvoices}</div>
+            <div><span className="text-muted-foreground">ID cards:</span> {syncResult.uploadedIdCards}</div>
+          </div>
+          {syncResult.skipped.length > 0 && (
+            <div className="mt-3 text-xs text-muted-foreground">
+              Skipped {syncResult.skipped.length} file{syncResult.skipped.length === 1 ? "" : "s"}.
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Add Student Form */}
       {showForm && (

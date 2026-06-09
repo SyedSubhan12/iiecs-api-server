@@ -186,6 +186,16 @@ export default function StudentPayments() {
                     <td className="px-4 py-3 text-muted-foreground text-xs">{inv.dueDate ?? "—"}</td>
                     <td className="px-4 py-3"><StatusBadge status={inv.status} /></td>
                     <td className="px-4 py-3">
+                      {(inv as { pdfUrl?: string | null }).pdfUrl && (
+                        <a
+                          href={(inv as { pdfUrl?: string | null }).pdfUrl ?? "#"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mr-3 text-xs text-primary hover:underline font-semibold"
+                        >
+                          Supabase
+                        </a>
+                      )}
                       <a
                         href={`${API_BASE}/invoices/${inv.id}/pdf`}
                         target="_blank"
