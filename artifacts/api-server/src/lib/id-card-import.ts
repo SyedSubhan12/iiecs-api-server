@@ -10,7 +10,12 @@ import { uploadPdfToSupabase } from "./supabase-storage.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const ID_CARDS_DIR = path.resolve(__dirname, "../../../../id_Cards");
+// In the bundled output (dist/index.mjs), __dirname is artifacts/api-server/dist
+// In the source (src/lib/id-card-import.ts), __dirname is artifacts/api-server/src/lib
+// Both should resolve to the workspace root/id_Cards
+const ID_CARDS_DIR = __dirname.includes("dist")
+  ? path.resolve(__dirname, "../../../id_Cards")
+  : path.resolve(__dirname, "../../../../id_Cards");
 const ID_CARDS_BUCKET = "id-cards";
 const INVOICES_BUCKET = "invoices";
 const DEFAULT_BATCH = "Batch B - C/C++ Algorithms";

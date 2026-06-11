@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db, paymentsTable, studentsTable, invoicesTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
+import * as XLSX from "xlsx";
 
 const ADMIN_EMAILS = ["admin@iiecs.edu", "teacher@iiecs.edu"];
 
@@ -32,7 +33,7 @@ const router = Router();
 const FIXED_STUDENT_FEE_PKR = 2000;
 
 // List payments
-router.get("/payments", async (req, res) => {
+router.get("/", async (req, res) => {
   const { studentId, status } = req.query as {
     studentId?: string;
     status?: string;
@@ -70,7 +71,7 @@ router.get("/payments", async (req, res) => {
 });
 
 // Create payment
-router.post("/payments", async (req, res) => {
+router.post("/", async (req, res) => {
   const body = req.body as {
     studentId: string;
     amount?: number;
@@ -105,8 +106,97 @@ router.post("/payments", async (req, res) => {
   });
 });
 
+// Export payments to Excel
+router.get("/excel-export", async (req, res) => {
+  console.log("[DEBUG] Entered /payments/excel-export handler");
+  try {
+    const auth = await getAuthContext(req);
+    if (!auth || auth.role !== "admin") {
+      res.status(403).json({ error: "Admin access required" });
+      return;
+    }
+
+    // Fetch from both tables to be comprehensive, or just invoices if that's the primary fee record
+    const invoiceRows = await db
+      .select({
+        studentName: studentsTable.fullName,
+        studentId: studentsTable.idNumber,
+        amount: invoicesTable.amount,
+        status: invoicesTable.status,
+        dueDate: invoicesTable.dueDate,
+        createdAt: invoicesTable.createdAt,
+      })
+      .from(invoicesTable)
+      .innerJoin(studentsTable, eq(invoicesTable.studentId, studentsTable.id));
+
+    const paymentRows = await db
+      .select({
+        studentName: studentsTable.fullName,
+        studentId: studentsTable.idNumber,
+        amount: paymentsTable.amount,
+        status: paymentsTable.status,
+        dueDate: paymentsTable.dueDate,
+        createdAt: paymentsTable.createdAt,
+      })
+      .from(paymentsTable)
+      .innerJoin(studentsTable, eq(paymentsTable.studentId, studentsTable.id));
+
+    // Combine and deduplicate if necessary, or just list both. 
+    // Usually invoices are the "fee" record.
+    const combinedData = [...invoiceRows, ...paymentRows];
+
+    const data = combinedData.map((r) => {
+      // Extract month from dueDate (YYYY-MM-DD) or createdAt
+      let month = "N/A";
+      if (r.dueDate) {
+        month = r.dueDate.substring(0, 7); // YYYY-MM
+      } else {
+        month = r.createdAt.toISOString().substring(0, 7);
+      }
+
+      return {
+        "Student Name": r.studentName,
+        "Student ID": r.studentId,
+        "Month": month,
+        "Fees": r.status === "paid" ? "Paid" : "Unpaid",
+        "Amount (PKR)": parseFloat(r.amount),
+      };
+    });
+
+    if (data.length === 0) {
+      // Add a placeholder row if no data, so the file isn't completely "corrupt" or confusing
+      data.push({
+        "Student Name": "No records found",
+        "Student ID": "-",
+        "Month": "-",
+        "Fees": "-",
+        "Amount (PKR)": 0,
+      });
+    }
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Fee Status");
+
+    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="Student_Fees_Export.xlsx"',
+    );
+    res.send(buffer);
+  } catch (error) {
+    console.error("Export failed:", error);
+    res.status(500).json({ error: "Failed to export payments" });
+  }
+});
+
 // Get payment
-router.get("/payments/:id", async (req, res) => {
+router.get("/:id", async (req, res) => {
   const [row] = await db
     .select({
       id: paymentsTable.id,
@@ -136,7 +226,7 @@ router.get("/payments/:id", async (req, res) => {
 });
 
 // Update payment
-router.patch("/payments/:id", async (req, res) => {
+router.patch("/:id", async (req, res) => {
   const body = req.body as {
     status?: string;
     paidDate?: string | null;
@@ -152,6 +242,7 @@ router.patch("/payments/:id", async (req, res) => {
     .set({
       ...(body.status !== undefined && { status: body.status }),
       ...(body.status === "paid" && !body.paidDate && { paidDate: today }),
+      ...(body.status !== undefined && body.status !== "paid" && { paidDate: null }),
       ...(body.paidDate !== undefined && { paidDate: body.paidDate }),
       ...(body.paymentMethod !== undefined && { paymentMethod: body.paymentMethod }),
       ...(body.referenceNumber !== undefined && { referenceNumber: body.referenceNumber }),
@@ -180,7 +271,7 @@ router.patch("/payments/:id", async (req, res) => {
 });
 
 // Delete payment by ID
-router.delete("/payments/:id", async (req, res) => {
+router.delete("/:id", async (req, res) => {
   const result = await db
     .delete(paymentsTable)
     .where(eq(paymentsTable.id, req.params.id))
@@ -195,7 +286,7 @@ router.delete("/payments/:id", async (req, res) => {
 });
 
 // Delete ALL payments (admin danger zone)
-router.delete("/payments", async (req, res) => {
+router.delete("/", async (req, res) => {
   try {
     const auth = await getAuthContext(req);
     if (!auth) {
@@ -226,6 +317,7 @@ router.delete("/payments", async (req, res) => {
     res.status(500).json({ error: "Failed to delete payments and invoices" });
   }
 });
+
 // Delete all invoices (admin only)
 router.delete("/invoices", async (req, res) => {
   try {

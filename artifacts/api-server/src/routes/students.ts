@@ -405,7 +405,7 @@ router.get("/students/:id/progress", async (req, res) => {
     .reduce((s, p) => s + parseFloat(p.amount), 0);
 
   const totalPending = payments
-    .filter((p) => p.status === "pending" || p.status === "overdue")
+    .filter((p) => p.status === "pending" || p.status === "overdue" || p.status === "unpaid")
     .reduce((s, p) => s + parseFloat(p.amount), 0);
 
   res.json({

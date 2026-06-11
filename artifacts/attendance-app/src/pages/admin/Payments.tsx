@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   useListPayments,
   useUpdatePayment,
+  useUpdateInvoice,
   useCreatePayment,
   useListStudents,
   useGenerateMonthlyInvoices,
@@ -29,6 +30,27 @@ function StatusBadge({ status }: { status: string }) {
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${map[status] ?? "bg-muted text-muted-foreground border-border"}`}>
       {status.charAt(0).toUpperCase() + status.slice(1)}
     </span>
+  );
+}
+
+function StatusToggle({ status, onToggle, disabled }: { status: string; onToggle: () => void; disabled?: boolean }) {
+  const map: Record<string, string> = {
+    paid: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30",
+    pending: "bg-amber-500/20 text-amber-400 border-amber-500/30 hover:bg-amber-500/30",
+    overdue: "bg-red-500/20 text-red-400 border-red-500/30 hover:bg-red-500/30",
+    partial: "bg-blue-500/20 text-blue-400 border-blue-500/30 hover:bg-blue-500/30",
+    unpaid: "bg-amber-500/20 text-amber-400 border-amber-500/30 hover:bg-amber-500/30",
+  };
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onToggle(); }}
+      disabled={disabled}
+      type="button"
+      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border transition-colors disabled:opacity-50 ${map[status] ?? "bg-muted text-muted-foreground border-border"}`}
+      title={`Click to mark as ${status === "paid" ? "unpaid" : "paid"}`}
+    >
+      {status.charAt(0).toUpperCase() + status.slice(1)}
+    </button>
   );
 }
 
@@ -122,6 +144,14 @@ export default function PaymentsPage() {
     },
   });
 
+  const invoiceUpdateMutation = useUpdateInvoice({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListInvoicesQueryKey() });
+      },
+    },
+  });
+
   const createMutation = useCreatePayment({
     mutation: {
       onSuccess: () => {
@@ -144,6 +174,44 @@ export default function PaymentsPage() {
 
   function markPaid(id: string) {
     updateMutation.mutate({ id, data: { status: "paid" } });
+  }
+
+  function markUnpaid(id: string) {
+    updateMutation.mutate({ id, data: { status: "unpaid" } });
+  }
+
+  function toggleInvoiceStatus(id: string, currentStatus: string) {
+    const nextStatus = currentStatus === "paid" ? "unpaid" : "paid";
+    invoiceUpdateMutation.mutate({ id, data: { status: nextStatus } });
+  }
+
+  async function handleExportExcel() {
+    if (!user?.email) {
+      alert("Admin email is missing from the current session.");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/payments/excel-export`, {
+        headers: { "x-user-email": user.email },
+      });
+
+      if (!res.ok) {
+        throw new Error(`Export failed with status ${res.status}`);
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Student_Fees_Export_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to export Excel");
+    }
   }
 
   function handleCreate(e: React.FormEvent) {
@@ -327,6 +395,12 @@ export default function PaymentsPage() {
           className="px-4 py-2 bg-muted text-muted-foreground text-sm font-medium rounded-md border border-border hover:text-foreground transition-opacity"
         >
           🗂 Download 3-Up PDF
+        </button>
+        <button
+          onClick={handleExportExcel}
+          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-md border border-emerald-500/50 transition-all duration-200 flex items-center gap-2 shadow-sm"
+        >
+          📊 Export to Excel
         </button>
         <button
           onClick={() => setShowForm(true)}
@@ -571,7 +645,7 @@ export default function PaymentsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  {["Student", "Amount", "Description", "Due Date", "Status", "Actions"].map((h) => (
+                  {["Student", "Amount", "Description", "Due Date", "Status"].map((h) => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">
                       {h}
                     </th>
@@ -585,17 +659,18 @@ export default function PaymentsPage() {
                     <td className="px-4 py-3 font-mono text-foreground font-semibold">PKR {p.amount.toLocaleString()}</td>
                     <td className="px-4 py-3 text-muted-foreground text-xs">{p.description}</td>
                     <td className="px-4 py-3 text-muted-foreground text-xs">{p.dueDate ?? "—"}</td>
-                    <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
                     <td className="px-4 py-3">
-                      {p.status !== "paid" && (
-                        <button
-                          onClick={() => markPaid(p.id)}
-                          disabled={updateMutation.isPending}
-                          className="text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded hover:bg-emerald-500/30 transition-colors disabled:opacity-50"
-                        >
-                          Mark Paid
-                        </button>
-                      )}
+                      <StatusToggle
+                        status={p.status}
+                        disabled={updateMutation.isPending}
+                        onToggle={() => {
+                          if (p.status === "paid") {
+                            markUnpaid(p.id);
+                          } else {
+                            markPaid(p.id);
+                          }
+                        }}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -640,7 +715,13 @@ export default function PaymentsPage() {
                         {inv.issuedDate ? new Date(inv.issuedDate).toLocaleDateString() : "—"}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">{inv.dueDate ?? "—"}</td>
-                      <td className="px-4 py-3"><StatusBadge status={inv.status} /></td>
+                      <td className="px-4 py-3">
+                        <StatusToggle
+                          status={inv.status}
+                          disabled={invoiceUpdateMutation.isPending}
+                          onToggle={() => toggleInvoiceStatus(inv.id, inv.status)}
+                        />
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <button

@@ -24,13 +24,13 @@ router.get("/dashboard/stats", async (_req, res) => {
     .select({ status: paymentsTable.status, amount: paymentsTable.amount })
     .from(paymentsTable);
 
-  const pendingPayments = allPayments.filter((p) => p.status === "pending").length;
+  const pendingPayments = allPayments.filter((p) => p.status === "pending" || p.status === "unpaid").length;
   const overduePayments = allPayments.filter((p) => p.status === "overdue").length;
   const totalPaidAmount = allPayments
     .filter((p) => p.status === "paid")
     .reduce((s, p) => s + parseFloat(p.amount), 0);
   const totalPendingAmount = allPayments
-    .filter((p) => p.status === "pending" || p.status === "overdue")
+    .filter((p) => p.status === "pending" || p.status === "overdue" || p.status === "unpaid")
     .reduce((s, p) => s + parseFloat(p.amount), 0);
 
   const allAttendance = await db

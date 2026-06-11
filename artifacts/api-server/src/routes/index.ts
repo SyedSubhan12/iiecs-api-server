@@ -13,7 +13,7 @@ router.use(healthRouter);
 router.use(authRouter);
 router.use(studentsRouter);
 router.use(attendanceRouter);
-router.use(paymentsRouter);
+router.use("/payments", paymentsRouter);
 router.use(invoicesRouter);
 router.use(dashboardRouter);
 
